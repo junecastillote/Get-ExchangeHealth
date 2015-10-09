@@ -1,5 +1,5 @@
 Write-Host '===================================================' -ForegroundColor Yellow
-Write-Host '>>         Get-ExchangeHealth v 4.2              <<' -ForegroundColor Yellow
+Write-Host '>>          Get-ExchangeHealth v4.2              <<' -ForegroundColor Yellow
 Write-Host '>>         june.castillote@gmail.com             <<' -ForegroundColor Yellow
 Write-Host '===================================================' -ForegroundColor Yellow
 #http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
