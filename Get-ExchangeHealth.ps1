@@ -211,9 +211,9 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 					$serverobj.UpTime = $uptime
 					$serverobj.Connectivity = "Passed"
 					$serviceStatus = Test-ServiceHealth -Server $server
-					$serverobj.HubTransportRole = "n/a"
-					$serverobj.ClientAccessRole = "n/a"
-					$serverobj.MailboxRole = "n/a"
+					$serverobj.HubTransportRole = ""
+					$serverobj.ClientAccessRole = ""
+					$serverobj.MailboxRole = ""
 					$site = ($server.site.ToString()).Split("/")
 					$serverObj.ADSite = $site[-1]
 					foreach ($service in $serviceStatus)
