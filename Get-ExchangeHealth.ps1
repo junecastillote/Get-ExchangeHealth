@@ -1,5 +1,5 @@
 Write-Host '===================================================' -ForegroundColor Yellow
-Write-Host '>>          Get-ExchangeHealth v4.3              <<' -ForegroundColor Yellow
+Write-Host '>>          Get-ExchangeHealth v4.4              <<' -ForegroundColor Yellow
 Write-Host '>>         june.castillote@gmail.com             <<' -ForegroundColor Yellow
 Write-Host '===================================================' -ForegroundColor Yellow
 #http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
@@ -40,13 +40,12 @@ $MailCC = ''
 $MailBCC = ''
 #>>------------------------------------------------------------------------------
 #>>Import Exchange 2010 Shell Snap-In if not already added-----------------------
-if ($RunMdbReport -eq $true -OR $RunPdbReport -eq $true -OR $RunDAGReplicationReport -eq $true -OR $RunQueueReport -eq $true)
-{
+
 	if (!(Get-PSSnapin | where {$_.Name -eq "Microsoft.Exchange.Management.PowerShell.E2010"}))
 	{
 		try
 		{
-			Write-Host (Get-Date) ': Add Exchange 2010 Snap-in' -ForegroundColor Yellow
+			Write-Host (Get-Date) ': Add Exchange Snap-in' -ForegroundColor Yellow
 			Add-PSSnapin Microsoft.Exchange.Management.PowerShell.E2010 -ErrorAction STOP
 		}
 		catch
@@ -55,7 +54,7 @@ if ($RunMdbReport -eq $true -OR $RunPdbReport -eq $true -OR $RunDAGReplicationRe
 			EXIT
 		}
 	}
-}
+
 #>>------------------------------------------------------------------------------
 
 Function Ping-Server ($server)
@@ -71,7 +70,7 @@ Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -No
 		{
 			if (Ping-Server($mailboxdb.Server.Name) -eq $true)
 			{
-				$mdbobj = "" | Select Name,Mounted,MountedOnServer,ActivationPreference,DatabaseSize,AvailableNewMailboxSpace,ActiveMailboxCount,DisconnectedMailboxCount,TotalItemSize,TotalDeletedItemSize,EdbFilePath,LogFolderPath,LogFilePrefix,LastFullBackup,LastIncrementalBackup,BackupInProgress,MapiConnectivity,MailFlow
+				$mdbobj = "" | Select Name,Mounted,MountedOnServer,ActivationPreference,DatabaseSize,AvailableNewMailboxSpace,ActiveMailboxCount,DisconnectedMailboxCount,TotalItemSize,TotalDeletedItemSize,EdbFilePath,LogFolderPath,LogFilePrefix,LastFullBackup,LastIncrementalBackup,BackupInProgress,MapiConnectivity
 				$mdbobj.Name = $mailboxdb.name
 				$mdbobj.Mounted = $mailboxdb.Mounted
 				$mdbobj.MountedOnServer = $mailboxdb.Server.Name
@@ -89,7 +88,7 @@ Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -No
 				$mdbobj.AvailableNewMailboxSpace = "{0:N2}" -f ($mailboxdb.AvailableNewMailboxSpace.tobytes() / 1GB)
 				#MAPI CONNECTIVITY
 				$mdbobj.MapiConnectivity = Test-MapiConnectivity -Database $mailboxdb.Identity -PerConnectionTimeout 10
-				$mdbobj.MailFlow = Test-Mailflow $mailboxdb.Server.Name
+				#$mdbobj.MailFlow = Test-Mailflow $mailboxdb.Server.Name
 			}
 			else
 			{
@@ -111,7 +110,7 @@ Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -No
 				$mdbobj.AvailableNewMailboxSpace = "-"
 				#MAPI CONNECTIVITY
 				$mdbobj.MapiConnectivity = "-"
-				$mdbobj.MailFlow = "-"
+				#$mdbobj.MailFlow = "-"
 			}
 		
 			
@@ -187,7 +186,7 @@ Function Get-ReplicationHealth {
 
 Function Get-MailQueues{
 	Write-Host (Get-Date) ': Mail Queue Check... ' -ForegroundColor Yellow -NoNewLine
-	$stats_collection = get-TransportServer | Sort-Object Name | %{Get-Queue -Server $_}
+	$stats_collection = get-TransportServer | ?{$_.ServerRole -notmatch 'Edge'} | Sort-Object Name | %{Get-Queue -Server $_}
 	Write-Host "Done" -ForegroundColor Green
 	return $stats_collection
 }
@@ -203,7 +202,7 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 				{
 					$serverOS = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $server
 				
-					$serverobj = "" | Select Server,Connectivity,ADSite,UpTime,HubTransportRole,ClientAccessRole,MailboxRole
+					$serverobj = "" | Select Server,Connectivity,ADSite,UpTime,HubTransportRole,ClientAccessRole,MailboxRole,MailFlow
 					$timespan = $serverOS.ConvertToDateTime($serverOS.LocalDateTime) - $serverOS.ConvertToDateTime($serverOS.LastBootUpTime)
 					[int]$uptime = "{0:00}" -f $timespan.TotalHours			
 					
@@ -254,6 +253,33 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 										}
 								}
 						}
+						
+					if ($server.serverrole -match 'Mailbox')
+					{
+						#Exchange 2015
+						if ($server.AdminDisplayVersion -like 'Version 15*') 
+						{
+							$mailflowresult = $null
+							$url = (Get-PowerShellVirtualDirectory -Server $server -AdPropertiesOnly | Where {$_.Name -eq "Powershell (Default Web Site)"}).InternalURL.AbsoluteUri
+							$session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri $url -ErrorAction STOP
+							
+							try
+							{
+								$result = Invoke-Command -Session $session {Test-Mailflow} -ErrorAction STOP
+								$mailflowresult = $result.TestMailflowResult
+							}
+							catch
+							{
+								$mailflowresult = "Fail"
+							}
+							$serverObj.MailFlow = $mailflowresult
+						}
+						#Exchange 2010
+						elseif ($server.AdminDisplayVersion -like 'Version 14*')
+						{
+							$serverObj.MailFlow = Test-MailFlow $server.Name						
+						}					
+					}
 				}
 				else
 				{
@@ -267,11 +293,10 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 				$serverobj.HubTransportRole = "Failed"
 				$serverobj.ClientAccessRole = "Failed"
 				$serverobj.MailboxRole = "Failed"	
+				$serverObj.MailFlow = "Failed"
 				}
 			$stats_collection += $serverobj
 		}	
-					
-
 	Write-Host "Done" -ForegroundColor Green
 	return $stats_collection
 }
@@ -284,11 +309,11 @@ Function Create-ServerHealthReport ($serverhealthinfo)
 	$currentServer = ""
 	$mbody += '<table id="SectionLabels"><tr><th class="data">Server Health Status</th></tr></table>'
 	$mbody += '<table id="data">'
-	$mbody += '<tr><th>Server</th><th>Site</th><th>Connectivity</th><th>Up Time (Hours)</th><th>Hub Transport Role</th><th>Client Access Role</th><th>Mailbox Role</th></tr>'
+	$mbody += '<tr><th>Server</th><th>Site</th><th>Connectivity</th><th>Up Time (Hours)</th><th>Hub Transport Role</th><th>Client Access Role</th><th>Mailbox Role</th><th>Mail Flow</th></tr>'
 	foreach ($server in $serverhealthinfo)
 	{
 		$mbody += "<tr><td>$($server.server)</td><td>$($server.ADSite)</td>"
-		
+		#Uptime
 		if ($server.UpTime -lt 24)
 			{
 				$errString += "<tr><td>Server Up Time</td></td><td>$($server.server) - up time [$($server.Uptime)] is less than 24 hours</td></tr>"
@@ -303,7 +328,7 @@ Function Create-ServerHealthReport ($serverhealthinfo)
 			{
 				$mbody += "<td class = ""good"">$($server.Connectivity)</td><td class = ""good"">$($server.UpTime)</td>"
 			}
-			
+		#Transport Role
 		if ($server.HubTransportRole -eq 'Passed')
 			{
 				$mbody += '<td class = "good">Passed</td>'
@@ -317,7 +342,7 @@ Function Create-ServerHealthReport ($serverhealthinfo)
 			{
 				$mbody += '<td class = "good"></td>'
 			}
-		
+		#CAS Role
 		if ($server.ClientAccessRole -eq 'Passed')
 			{
 				$mbody += '<td class = "good">Passed</td>'
@@ -331,7 +356,7 @@ Function Create-ServerHealthReport ($serverhealthinfo)
 			{
 				$mbody += '<td class = "good"></td>'
 			}
-		
+		#Mailbox Role
 		if ($server.MailboxRole -eq 'Passed')
 			{
 				$mbody += '<td class = "good">Passed</td>'
@@ -345,6 +370,22 @@ Function Create-ServerHealthReport ($serverhealthinfo)
 			{
 				$mbody += '<td class = "good"></td>'
 			}
+			
+		#Mail Flow
+		if ($server.MailFlow -eq "Failed")
+			{
+				$errString += "<tr><td>Mail Flow</td></td><td>$($db.Name) - Mail Flow Result FAILED</td></tr>"
+				$mbody += '<td class = "bad">Failed</td>'
+			}
+		elseif ($server.MailFlow = 'Success')
+			{
+				$mbody += '<td class = "good">Success</td>'
+			}
+		elseif ($server.MailFlow -eq "" -or $server.MailFlow -eq $null)
+			{
+				$mbody += '<td class = "good"></td>'
+			}
+			
 		$mbody += '</tr>'
 	}
 Write-Host "Done" -ForegroundColor Green
@@ -455,7 +496,7 @@ Write-Host (Get-Date) ': Mailbox Database Report... ' -ForegroundColor Yellow -N
 $mbody = @()
 $errString = @()
 $mbody += '<table id="SectionLabels"><tr><th class="data">Mailbox Database</th></tr></table>'
-$mbody += '<table id="data"><tr><th>Name</th><th>Mounted</th><th>On Server [Preference]</th><th>Size (GB)</th><th>White Space (GB)</th><th>Active Mailbox</th><th>Disconnected Mailbox</th><th>Item Size (GB)</th><th>Deleted Items Size (GB)</th><th>Full Backup</th><th>Incremental Backup</th><th>Backup In Progress</th><th>Mapi Connectivity</th><th>Mail Flow</th></tr>'
+$mbody += '<table id="data"><tr><th>Name</th><th>Mounted</th><th>On Server [Preference]</th><th>Size (GB)</th><th>White Space (GB)</th><th>Active Mailbox</th><th>Disconnected Mailbox</th><th>Item Size (GB)</th><th>Deleted Items Size (GB)</th><th>Full Backup</th><th>Incremental Backup</th><th>Backup In Progress</th><th>Mapi Connectivity</th></tr>'
 ForEach ($db in $dblist)
 {
 	
@@ -541,16 +582,6 @@ ForEach ($db in $dblist)
 		{
 			$errString += "<tr><td>MAPI Connectivity</td></td><td>$($db.Name) - MAPI Connectivity Result is $($db.MapiConnectivity.Result.Value)</td></tr>"
 			$mbody += '<td class = "bad"> ' + $db.MapiConnectivity.Result.Value + '</td>'
-		}
-		
-		if ($db.MailFlow.TestMailflowResult -eq 'Success')
-		{
-			$mbody += '<td class = "good"> ' + $db.MailFlow.TestMailflowResult + '</td>'
-		}
-		else
-		{
-			$errString += "<tr><td>Mail Flow</td></td><td>$($db.Name) - Mail Flow Result is $($db.MailFlow.TestMailflowResult)</td></tr>"
-			$mbody += '<td class = "bad"> ' + $db.MailFlow.TestMailflowResult + '</td>'
 		}
 	}
 	else
@@ -648,8 +679,9 @@ return $mbody,$errString
 #>>SCRIPT BEGIN---------------------------------------------------------------
 
 #>>Get-List of Exchange Servers and assign to array----------------------------
-Write-Host (Get-Date) ': Building List of Servers' -ForegroundColor Yellow
-$ExServerList = Get-ExchangeServer | Sort-Object Name
+Write-Host (Get-Date) ': Building List of Servers - excluding Edge' -ForegroundColor Yellow
+$ExServerList = Get-ExchangeServer | ?{$_.ServerRole -notmatch 'Edge'} | Sort-Object Name
+#$ExServerList = Get-ExchangeServer | Sort-Object Name
 #>>----------------------------------------------------------------------------
 #>>Get-List of Mailbox Database and assign to array----------------------------
 if ($RunMdbReport -eq $true) {
@@ -669,7 +701,7 @@ Write-Host (Get-Date) ': Begin Data Extraction' -ForegroundColor Yellow
 
 if ($RunServerHealthReport -eq $true) {$serverhealthdata = Get-ServerHealth($ExServerList)}
 if ($RunMdbReport -eq $true) {$mdbdata = Get-MdbStatistics ($ExMailboxDBList) | Sort-Object Name}
-if ($RunPdbReport -eq $true) {$pdbdata = Get-PdbStatistics ($ExPFDBList)}
+if ($RunPdbReport -eq $true -AND $ExPFDBList.Count -gt 0) {$pdbdata = Get-PdbStatistics ($ExPFDBList)}
 if ($RunDAGReplicationReport -eq $true) {$repldata = Get-ReplicationHealth}
 if ($RunQueueReport -eq $true) {$queueData = Get-MailQueues}
 if ($RunDiskReport -eq $true) {$diskdata = Get-DiskSpaceStatistics($ExServerList)}
@@ -679,7 +711,7 @@ Write-Host '==================================================================' 
 Write-Host (Get-Date) ': Create Report' -ForegroundColor Yellow
 if ($RunServerHealthReport -eq $true) {$serverhealthreport,$sError = Create-ServerHealthReport ($serverhealthdata) ; $errSummary += $sError}
 if ($RunMdbReport -eq $true) {$mdbreport,$mError = Create-MdbReport ($mdbdata) ; $errSummary += $mError}
-if ($RunPdbReport -eq $true) {$pdbreport,$pError = Create-PdbReport ($pdbdata) ; $errSummary += $pError}
+if ($RunPdbReport -eq $true -AND $ExPFDBList.Count -gt 0) {$pdbreport,$pError = Create-PdbReport ($pdbdata) ; $errSummary += $pError}
 if ($RunDAGReplicationReport -eq $true) {$replicationreport,$rError = Create-ReplicationReport ($repldata) ; $errSummary += $rError}
 if ($RunQueueReport -eq $true) {$queuereport,$qError = Create-QueueReport($queueData) ; $errSummary += $qError}
 if ($RunDiskReport -eq $true) {$diskreport,$dError = Create-DiskReport ($diskdata) ; $errSummary += $dError}
@@ -716,7 +748,7 @@ $mail_body += '<b>[REPORT]</b><br />'
 $mail_body += 'Generated from Server: ' + (gc env:computername) + '<br />'
 $mail_body += 'Script Path: ' + $script_root
 $mail_body += '<p>'
-$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.3</a>'
+$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4</a>'
 $mbody = $mbox -replace "&lt;","<"
 $mbody = $mbox -replace "&gt;",">"
 $mail_body | Out-File $reportfile
