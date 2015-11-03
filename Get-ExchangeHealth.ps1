@@ -1,5 +1,5 @@
 Write-Host '===================================================' -ForegroundColor Yellow
-Write-Host '>>          Get-ExchangeHealth v4.4              <<' -ForegroundColor Yellow
+Write-Host '>>          Get-ExchangeHealth v4.4a             <<' -ForegroundColor Yellow
 Write-Host '>>         june.castillote@gmail.com             <<' -ForegroundColor Yellow
 Write-Host '===================================================' -ForegroundColor Yellow
 #http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
@@ -748,7 +748,7 @@ $mail_body += '<b>[REPORT]</b><br />'
 $mail_body += 'Generated from Server: ' + (gc env:computername) + '<br />'
 $mail_body += 'Script Path: ' + $script_root
 $mail_body += '<p>'
-$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4</a>'
+$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4a</a>'
 $mbody = $mbox -replace "&lt;","<"
 $mbody = $mbox -replace "&gt;",">"
 $mail_body | Out-File $reportfile
