@@ -1,5 +1,5 @@
 Write-Host '===================================================' -ForegroundColor Yellow
-Write-Host '>>          Get-ExchangeHealth v4.4a             <<' -ForegroundColor Yellow
+Write-Host '>>          Get-ExchangeHealth v4.4b             <<' -ForegroundColor Yellow
 Write-Host '>>         june.castillote@gmail.com             <<' -ForegroundColor Yellow
 Write-Host '===================================================' -ForegroundColor Yellow
 #http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
@@ -16,8 +16,8 @@ $css_string = '<style type="text/css"> #HeadingInfo { font-family:Tahoma, "Trebu
 $reportfile = $script_root + "\DbAndDiskReport_" + ('{0:dd_MMM_yyyy}' -f (Get-Date)) + ".html"
 #>>------------------------------------------------------------------------------
 #>>Thresholds--------------------------------------------------------------------
-[int]$t_lastfullbackup = 171
-[int]$t_lastincrementalbackup = 27
+[int]$t_lastfullbackup = 171 #hours
+[int]$t_lastincrementalbackup = 27 #hours
 [int]$t_DiskBadPercent = 12
 [int]$t_mQueue = 20
 #>>------------------------------------------------------------------------------
@@ -36,8 +36,8 @@ $MailSubject = 'Exchange Service Health Report '
 $MailServer = 'SMTP RELAY HERE'
 $MailSender = 'Sender Name <sender@domain.com>'
 $MailTo = 'recipient address here'
-$MailCC = ''
-$MailBCC = ''
+$MailCC = '' #if you specify a CC address, make sure to uncomment the CC line in the $params variable block
+$MailBCC = '' #if you specify a BCC address, make sure to uncomment the BCC line in the $params variable block
 #>>------------------------------------------------------------------------------
 #>>Import Exchange 2010 Shell Snap-In if not already added-----------------------
 
@@ -256,7 +256,7 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 						
 					if ($server.serverrole -match 'Mailbox')
 					{
-						#Exchange 2015
+						#Exchange 2013
 						if ($server.AdminDisplayVersion -like 'Version 15*') 
 						{
 							$mailflowresult = $null
@@ -748,7 +748,7 @@ $mail_body += '<b>[REPORT]</b><br />'
 $mail_body += 'Generated from Server: ' + (gc env:computername) + '<br />'
 $mail_body += 'Script Path: ' + $script_root
 $mail_body += '<p>'
-$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4a</a>'
+$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4b</a>'
 $mbody = $mbox -replace "&lt;","<"
 $mbody = $mbox -replace "&gt;",">"
 $mail_body | Out-File $reportfile
@@ -763,6 +763,8 @@ $params = @{
     From = $MailSender
 	To = $MailTo.Split(",")
     SmtpServer = $MailServer
+	#Cc = $MailCC.Split(",")
+	#Bcc = $MailBCC.Split(",")
 }
 #>>----------------------------------------------------------------------------
 #>> Send Report----------------------------------------------------------------
