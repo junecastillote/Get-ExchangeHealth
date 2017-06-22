@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<configuration>
+    <reportOptions
+		RunServerHealthReport = "true"
+		RunMdbReport = "true"
+		RunPdbReport = "true"
+		RunDAGReplicationReport = "true"
+		RunQueueReport = "true"
+		RunDiskReport = "true"
+		RunDAGCopyReport = "true"
+		SendReportViaEmail = "false"
+		ReportFile = "C:\Scripts\Get-ExchangeHealth\XYZ_Exchange_Hourly_Report.html"
+	/>
+	<thresholds
+		LastFullBackup = "7"
+		LastIncrementalBackup = "1"
+		DiskSpaceFree = "12"
+		MailQueueCount = "20"
+	/>	
+	<mailAndReportParameters
+		CompanyName = "XYZ"
+		MailSubject = "Exchange Service Health Report"
+		MailServer = "192.168.56.30"
+		MailSender = "exchange-Admin@XYZ.com.au"
+		MailTo = "administrator@xyz.com"
+	/>
+ </configuration>

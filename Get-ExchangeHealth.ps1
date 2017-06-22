@@ -1,45 +1,174 @@
-Write-Host '===================================================' -ForegroundColor Yellow
-Write-Host '>>          Get-ExchangeHealth v4.4b             <<' -ForegroundColor Yellow
-Write-Host '>>         june.castillote@gmail.com             <<' -ForegroundColor Yellow
-Write-Host '===================================================' -ForegroundColor Yellow
+#parameter bindings
+[CmdletBinding()]
+param (
+	[Parameter(Mandatory = $true)]
+	[string]$configFile,
+	[Parameter(Mandatory = $false)]
+	[switch]$enableDebug
+)
+
+#Import Configuration File
+if ((Test-Path $configFile) -eq $false)
+{
+	Write-Host "ERROR: File $($configFile) does not exist. Script cannot continue" -ForegroundColor Yellow
+	"ERROR: File $($configFile) does not exist. Script cannot continue" | Out-File error.txt
+	EXIT
+}
+[xml]$config = gc $configFile
+
+if ($Debug)
+{
+	$ErrorActionPreference="SilentlyContinue"
+	$WarningPreference="SilentlyContinue"
+}
+
+#Start Script
+$scriptVersion = "5.1"
+Write-Host '=================================================' -ForegroundColor Yellow
+Write-Host '              Get-ExchangeHealth		         ' -ForegroundColor Yellow
+Write-Host '           june.castillote@gmail.com    	     ' -ForegroundColor Yellow
+Write-Host '=================================================' -ForegroundColor Yellow
 #http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
 Write-Host ''
 Write-Host (Get-Date) ': Begin' -ForegroundColor Green
 Write-Host (Get-Date) ': Setting Paths and Variables' -ForegroundColor Yellow
-#$ErrorActionPreference="SilentlyContinue"
-$WarningPreference="SilentlyContinue";
-#>>Define Variables---------------------------------------------------------------
+
+#Define Variables
 $errSummary = ""
 $today = '{0:dd-MMM-yyyy hh:mm tt}' -f (Get-Date)
 $script_root = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-$css_string = '<style type="text/css"> #HeadingInfo { font-family:Tahoma, "Trebuchet MS", Arial, Helvetica, sans-serif; width:100%; border-collapse:collapse; } #HeadingInfo td, #HeadingInfo th { font-size:0.9em; padding:3px 7px 2px 7px; } #HeadingInfo th  { font-size:1.0em; font-weight:bold; text-align:center; padding-top:5px; padding-bottom:4px; background-color:#CC3300; color:#fff; } #SectionLabels { font-family:Tahoma, "Trebuchet MS", Arial, Helvetica, sans-serif; width:100%; border-collapse:collapse; } #SectionLabels th.data { font-size:0.8em; text-align:center; padding-top:5px; padding-bottom:4px; background-color:#A7C942; color:#fff; } #data { font-family:Consolas,Tahoma, "Trebuchet MS", Arial, Helvetica, sans-serif; width:100%; border-collapse:collapse; } #data td, #data th  { font-size:0.8em; border:1px solid #98bf21; padding:3px 7px 2px 7px; } #data th  { font-size:0.8em; padding-top:5px; padding-bottom:4px; background-color:#A7C942; color:#fff; text-align:left; } #data td { font-size:0.8em; padding-top:5px; padding-bottom:4px; text-align:left; } #data td.bad { font-size:0.8em; font-weight: bold; padding-top:5px; padding-bottom:4px; background-color:red; } #data td.good { font-size:0.8em; font-weight: bold; padding-top:5px; padding-bottom:4px; color:green; }</style> </head> <body> <hr />'
-$reportfile = $script_root + "\DbAndDiskReport_" + ('{0:dd_MMM_yyyy}' -f (Get-Date)) + ".html"
-#>>------------------------------------------------------------------------------
-#>>Thresholds--------------------------------------------------------------------
-[int]$t_lastfullbackup = 171 #hours
-[int]$t_lastincrementalbackup = 27 #hours
-[int]$t_DiskBadPercent = 12
-[int]$t_mQueue = 20
-#>>------------------------------------------------------------------------------
-#>>Options, set to $false if you do not want to run a specific report------------
-$RunServerHealthReport = $true
-$RunMdbReport = $true
-$RunPdbReport = $true
-$RunDAGReplicationReport = $true
-$RunQueueReport = $true
-$RunDiskReport = $true
-$SendReportViaEmail = $true
-#>>------------------------------------------------------------------------------
-#>>Mail
-$CompanyName = 'Company Name Here'
-$MailSubject = 'Exchange Service Health Report '
-$MailServer = 'SMTP RELAY HERE'
-$MailSender = 'Sender Name <sender@domain.com>'
-$MailTo = 'recipient address here'
-$MailCC = '' #if you specify a CC address, make sure to uncomment the CC line in the $params variable block
-$MailBCC = '' #if you specify a BCC address, make sure to uncomment the BCC line in the $params variable block
-#>>------------------------------------------------------------------------------
-#>>Import Exchange 2010 Shell Snap-In if not already added-----------------------
+$css_string = @'
+<style type="text/css">
+#HeadingInfo 
+	{
+		font-family:"Segoe UI";
+		width:100%;
+		border-collapse:collapse;
+	} 
+#HeadingInfo td, #HeadingInfo th 
+	{
+		font-size:0.8em;
+		padding:3px 7px 2px 7px;
+	} 
+#HeadingInfo th  
+	{ 
+		font-size:2.0em;
+		font-weight:normal;
+		text-align:left;
+		padding-top:5px;
+		padding-bottom:4px;
+		background-color:#604767;
+		color:#fff;
+	} 
+#SectionLabels
+	{ 
+		font-family:"Segoe UI";
+		width:100%;
+		border-collapse:collapse;
+	}
+#SectionLabels th.data
+	{
+		font-size:2.0em;
+		text-align:left;
+		padding-top:5px;
+		padding-bottom:4px;
+		background-color:#fff;
+		color:#000; 
+	} 
+#data 
+	{
+		font-family:"Segoe UI";
+		width:100%;
+		border-collapse:collapse;
+	} 
+#data td, #data th
+	{ 
+		font-size:0.8em;
+		border:1px solid #DDD;
+		padding:3px 7px 2px 7px; 
+	} 
+#data th  
+	{
+		font-size:0.8em;
+		padding-top:5px;
+		padding-bottom:4px;
+		background-color:#00B388;
+		color:#fff; text-align:left;
+	} 
+#data td 
+	{ 	font-size:0.8em;
+		padding-top:5px;
+		padding-bottom:4px;
+		text-align:left;
+	} 
+#data td.bad
+	{ 	font-size:0.8em;
+		font-weight: bold;
+		padding-top:5px;
+		padding-bottom:4px;
+		color:#f04953;
+	} 
+#data td.good
+	{ 	font-size:0.8em;
+		font-weight: bold;
+		padding-top:5px;
+		padding-bottom:4px;
+		color:#01a982;
+	}
+
+.status {
+	width: 10px;
+	height: 10px;
+	margin-right: 7px;
+	margin-bottom: 0px;
+	background-color: #CCC;
+	background-position: center;
+	opacity: 0.8;
+	display: inline-block;
+}
+.green {
+	background: #01a982;
+}
+.purple {
+	background: #604767;
+}
+.orange {
+	background: #ffd144;
+}
+.red {
+	background: #f04953;
+}
+</style>
+</head> 
+<body> 
+<hr />
+'@
+
+#Thresholds from config
+[int]$t_lastfullbackup = $config.configuration.thresholds.LastFullBackup
+[int]$t_lastincrementalbackup = $config.configuration.thresholds.LastIncrementalBackup
+[int]$t_DiskBadPercent = $config.configuration.thresholds.DiskSpaceFree
+[int]$t_mQueue = $config.configuration.thresholds.MailQueueCount
+
+#Options from config
+$RunServerHealthReport = $config.configuration.reportOptions.RunServerHealthReport
+$RunMdbReport = $config.configuration.reportOptions.RunMdbReport
+$RunPdbReport = $config.configuration.reportOptions.RunPdbReport
+$RunDAGCopyReport = $config.configuration.reportOptions.RunDAGCopyReport
+$RunDAGReplicationReport = $config.configuration.reportOptions.RunDAGReplicationReport
+$RunQueueReport = $config.configuration.reportOptions.RunQueueReport
+$RunDiskReport = $config.configuration.reportOptions.RunDiskReport
+$SendReportViaEmail = $config.configuration.reportOptions.SendReportViaEmail
+$reportfile = $config.configuration.reportOptions.ReportFile
+
+#Mail settings
+$CompanyName = $config.configuration.mailAndReportParameters.CompanyName
+$MailSubject = $config.configuration.mailAndReportParameters.MailSubject
+$MailServer = $config.configuration.mailAndReportParameters.MailServer
+$MailSender = $config.configuration.mailAndReportParameters.MailSender
+$MailTo = $config.configuration.mailAndReportParameters.MailTo
+
+#Import Exchange 2010 Shell Snap-In if not already added
 
 	if (!(Get-PSSnapin | where {$_.Name -eq "Microsoft.Exchange.Management.PowerShell.E2010"}))
 	{
@@ -55,8 +184,7 @@ $MailBCC = '' #if you specify a BCC address, make sure to uncomment the BCC line
 		}
 	}
 
-#>>------------------------------------------------------------------------------
-
+#Ping function
 Function Ping-Server ($server)
 {
 	$ping = Test-Connection $server -quiet -count 1
@@ -70,8 +198,11 @@ Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -No
 		{
 			if (Ping-Server($mailboxdb.Server.Name) -eq $true)
 			{
-				$mdbobj = "" | Select Name,Mounted,MountedOnServer,ActivationPreference,DatabaseSize,AvailableNewMailboxSpace,ActiveMailboxCount,DisconnectedMailboxCount,TotalItemSize,TotalDeletedItemSize,EdbFilePath,LogFolderPath,LogFilePrefix,LastFullBackup,LastIncrementalBackup,BackupInProgress,MapiConnectivity
+				$mdbStat = Get-MailboxStatistics -Database $mailboxdb
+				$mdbobj = "" | Select Name,Mounted,MountedOnServer,ActivationPreference,DatabaseSize,AvailableNewMailboxSpace,ActiveMailboxCount,DisconnectedMailboxCount,TotalItemSize,TotalDeletedItemSize,EdbFilePath,LogFolderPath,LogFilePrefix,LastFullBackup,LastIncrementalBackup,BackupInProgress,MapiConnectivity,EDBFreeSpace,LogFreeSpace
 				$mdbobj.Name = $mailboxdb.name
+				$mdbobj.EdbFilePath = $mailboxdb.EdbFilePath
+				$mdbobj.LogFolderPath = $mailboxdb.LogFolderPath
 				$mdbobj.Mounted = $mailboxdb.Mounted
 				$mdbobj.MountedOnServer = $mailboxdb.Server.Name
 				$mdbobj.ActivationPreference = $mailboxdb.ActivationPreference | ?{$_.Key -eq $mailboxdb.Server.Name}
@@ -79,21 +210,30 @@ Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -No
 				$mdbobj.LastIncrementalBackup = '{0:dd-MMM-yyyy hh:mm tt}' -f $mailboxdb.LastIncrementalBackup
 				$mdbobj.BackupInProgress = $mailboxdb.BackupInProgress
 				$mdbobj.DatabaseSize = "{0:N2}" -f ($mailboxdb.DatabaseSize.tobytes() / 1GB)
-				$mbxItemSize = Get-MailboxStatistics -Database $mailboxdb | %{$_.TotalItemSize.Value} | Measure-Object -sum
-				$mbxDelSize = Get-MailboxStatistics -Database $mailboxdb | %{$_.TotalDeletedItemSize.Value} | Measure-Object -sum
+				#$mbxItemSize = Get-MailboxStatistics -Database $mailboxdb | %{$_.TotalItemSize.Value} | Measure-Object -sum
+				$mbxItemSize = $mdbStat | %{$_.TotalItemSize.Value} | Measure-Object -sum
+				#$mbxDelSize = Get-MailboxStatistics -Database $mailboxdb | %{$_.TotalDeletedItemSize.Value} | Measure-Object -sum
+				$mbxDelSize = $mdbStat | %{$_.TotalDeletedItemSize.Value} | Measure-Object -sum
 				$mdbobj.TotalItemSize = "{0:N2}" -f ($mbxItemSize.sum / 1GB)
 				$mdbobj.TotalDeletedItemSize = "{0:N2}" -f ($mbxDelSize.sum / 1GB)
-				$mdbobj.ActiveMailboxCount = (Get-MailboxStatistics -Database $mailboxdb | where {$_.DisconnectDate -eq $null}).count
-				$mdbobj.DisconnectedMailboxCount = (Get-MailboxStatistics -Database $mailboxdb | where {$_.DisconnectDate -ne $null}).count
+				$mdbobj.ActiveMailboxCount = ($mdbStat | where {$_.DisconnectDate -eq $null}).count
+				$mdbobj.DisconnectedMailboxCount = ($mdbStat | where {$_.DisconnectDate -ne $null}).count
 				$mdbobj.AvailableNewMailboxSpace = "{0:N2}" -f ($mailboxdb.AvailableNewMailboxSpace.tobytes() / 1GB)
-				#MAPI CONNECTIVITY
 				$mdbobj.MapiConnectivity = Test-MapiConnectivity -Database $mailboxdb.Identity -PerConnectionTimeout 10
-				#$mdbobj.MailFlow = Test-Mailflow $mailboxdb.Server.Name
+				
+				#Get Disk Details
+				$dbDrive = (Get-WmiObject Win32_LogicalDisk -Computer $mailboxdb.Server.Name | ?{$_.DeviceID -eq $mailboxdb.EdbFilePath.DriveName})
+				$logDrive = (Get-WmiObject Win32_LogicalDisk -Computer $mailboxdb.Server.Name | ?{$_.DeviceID -eq $mailboxdb.LogFolderPath.DriveName})
+				
+				$mdbobj.EDBFreeSpace = "{0:N2}" -f ($dbDrive.Size / 1GB) + '[' + "{0:N2}" -f ($dbDrive.FreeSpace / 1GB) + ']'
+				$mdbobj.LogFreeSpace = "{0:N2}" -f ($logDrive.Size / 1GB) + '[' + "{0:N2}" -f ($logDrive.FreeSpace / 1GB) + ']'
 			}
 			else
 			{
-				$mdbobj = "" | Select Name,Mounted,MountedOnServer,ActivationPreference,DatabaseSize,AvailableNewMailboxSpace,ActiveMailboxCount,DisconnectedMailboxCount,TotalItemSize,TotalDeletedItemSize,EdbFilePath,LogFolderPath,LogFilePrefix,LastFullBackup,LastIncrementalBackup,BackupInProgress,MapiConnectivity,MailFlow
+				$mdbobj = "" | Select Name,Mounted,MountedOnServer,ActivationPreference,DatabaseSize,AvailableNewMailboxSpace,ActiveMailboxCount,DisconnectedMailboxCount,TotalItemSize,TotalDeletedItemSize,EdbFilePath,LogFolderPath,LogFilePrefix,LastFullBackup,LastIncrementalBackup,BackupInProgress,MapiConnectivity,EDBFreeSpace,LogFreeSpace
 				$mdbobj.Name = $mailboxdb.name
+				$mdbobj.EdbFilePath = $mailboxdb.EdbFilePath
+				$mdbobj.LogFolderPath = $mailboxdb.LogFolderPath
 				$mdbobj.Mounted = "$($mailboxdb.Server.Name): Connection Failed"
 				$mdbobj.MountedOnServer = "-"
 				$mdbobj.ActivationPreference = "-"
@@ -108,9 +248,9 @@ Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -No
 				$mdbobj.ActiveMailboxCount = "-"
 				$mdbobj.DisconnectedMailboxCount = "-"
 				$mdbobj.AvailableNewMailboxSpace = "-"
-				#MAPI CONNECTIVITY
 				$mdbobj.MapiConnectivity = "-"
-				#$mdbobj.MailFlow = "-"
+				$mdbobj.EDBFreeSpace = "-"
+				$mdbobj.LogFreeSpace = "-"
 			}
 		
 			
@@ -196,8 +336,7 @@ Function Get-ServerHealth ($serverlist)
 Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNewLine
 	$stats_collection = @()
 		foreach ($server in $serverlist)
-		{		
-			
+		{
 			if (Ping-Server($server.name) -eq $true)
 				{
 					$serverOS = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $server
@@ -277,8 +416,8 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 						#Exchange 2010
 						elseif ($server.AdminDisplayVersion -like 'Version 14*')
 						{
-							$serverObj.MailFlow = Test-MailFlow $server.Name						
-						}					
+							$serverObj.MailFlow = Test-MailFlow $server.Name
+						}
 					}
 				}
 				else
@@ -286,23 +425,133 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 				$serverobj = "" | Select Server,Connectivity,ADSite,UpTime,HubTransportRole,ClientAccessRole,MailboxRole
 				
 				$site = ($server.site.ToString()).Split("/")
-				$serverObj.ADSite = $site[-1]				
+				$serverObj.ADSite = $site[-1]
 				$serverobj.Server = $server.Name
 				$serverobj.Connectivity = "Failed"
 				$serverobj.UpTime = "Cannot retrieve up time"
 				$serverobj.HubTransportRole = "Failed"
 				$serverobj.ClientAccessRole = "Failed"
-				$serverobj.MailboxRole = "Failed"	
+				$serverobj.MailboxRole = "Failed"
 				$serverObj.MailFlow = "Failed"
 				}
 			$stats_collection += $serverobj
-		}	
+		}
 	Write-Host "Done" -ForegroundColor Green
 	return $stats_collection
 }
 
-Function Create-ServerHealthReport ($serverhealthinfo)
-{
+Function Get-DAGCopyStatus ($mailboxdblist) {
+Write-Host (Get-Date) ': DAG Copy Status Check... ' -ForegroundColor Yellow -NoNewLine
+	$stats_collection = @()
+	
+		foreach ($db in $mailboxdblist)
+		{
+			if ($db.MasterType -eq 'DatabaseAvailabilityGroup')
+			{				
+				foreach ($dbCopy in $db.DatabaseCopies)
+				{
+					$temp = "" | Select Name,Status,CopyQueueLength,LogCopyQueueIncreasing,ReplayQueueLength,LogReplayQueueIncreasing,ContentIndexState,ContentIndexErrorMessage
+					$dbStatus = Get-MailboxDatabaseCopyStatus -Identity $dbCopy
+					$temp.Name = $dbStatus.Name
+					$temp.Status = $dbStatus.Status
+					$temp.CopyQueueLength = $dbStatus.CopyQueueLength
+					$temp.LogCopyQueueIncreasing = $dbStatus.LogCopyQueueIncreasing
+					$temp.ReplayQueueLength = $dbStatus.ReplayQueueLength
+					$temp.LogReplayQueueIncreasing = $dbStatus.LogReplayQueueIncreasing
+					$temp.ContentIndexState = $dbStatus.ContentIndexState
+					$temp.ContentIndexErrorMessage = $dbStatus.ContentIndexErrorMessage
+					$stats_collection += $temp
+				}				
+			}		
+		}
+	Write-Host "Done" -ForegroundColor Green
+	return $stats_collection | sort-object Name
+}
+
+
+Function Create-DAGCopyStatusReport ($mdbCopyStatus) {
+	Write-Host (Get-Date) ': DAG Copy Status... ' -ForegroundColor Yellow -NoNewLine
+	$mbody = @()
+	$errString = @()
+	$mbody += '<table id="SectionLabels"><tr><th class="data">Mailbox Database Copy Status</th></tr></table>'
+	$mbody += '<table id="data">'
+	$mbody += '<tr><th>Name</th><th>Status</th><th>CopyQueueLength</th><th>LogCopyQueueIncreasing</th><th>ReplayQueueLength</th><th>LogReplayQueueIncreasing</th><th>ContentIndexState</th><th>ContentIndexErrorMessage</th></tr>'
+	
+	foreach ($mdbCopy in $mdbCopyStatus)
+	{
+		
+		$mbody += "<tr><td>$($mdbCopy.Name)</td>"
+		
+		#Status
+		if ($mdbCopy.Status -eq 'Mounted' -or $mdbCopy.Status -eq 'Healthy')
+			{
+				$mbody += "<td class = ""good"">$($mdbCopy.Status)</td>"
+			}
+		else
+			{
+				$errString += "<tr><td>Database Copy</td></td><td>$($mdbCopy.Name) - Status is [$($mdbCopy.Status)]</td></tr>"
+				$mbody += "<td class = ""bad"">$($mdbCopy.Status)</td>"
+			}
+		#CopyQueueLength
+		if ($mdbCopy.CopyQueueLength -ge 5)
+			{
+				$errString += "<tr><td>Database Copy</td></td><td>$($mdbCopy.Name) - CopyQueueLength [$($mdbCopy.CopyQueueLength)] is >= 5</td></tr>"
+				$mbody += "<td class = ""bad"">$($mdbCopy.CopyQueueLength)</td>"
+			}
+		else
+			{
+				$mbody += "<td class = ""good"">$($mdbCopy.CopyQueueLength)</td>"
+			}
+		#LogCopyQueueIncreasing
+		if ($mdbCopy.LogCopyQueueIncreasing -eq $true)
+			{
+				$errString += "<tr><td>Database Copy</td></td><td>$($mdbCopy.Name) - LogCopyQueueIncreasing</tr>"
+				$mbody += "<td class = ""bad"">$($mdbCopy.LogCopyQueueIncreasing)</td>"
+			}
+		else
+			{
+				$mbody += "<td class = ""good"">$($mdbCopy.LogCopyQueueIncreasing)</td>"				
+			}
+		#ReplayQueueLength
+		if ($mdbCopy.ReplayQueueLength -ge 5)
+			{
+				$errString += "<tr><td>Database Copy</td></td><td>$($mdbCopy.Name) - ReplayQueueLength [$($mdbCopy.CopyQueueLength)] is >= 5</td></tr>"
+				$mbody += "<td class = ""bad"">$($mdbCopy.ReplayQueueLength)</td>"
+			}
+		else
+			{
+				$mbody += "<td class = ""good"">$($mdbCopy.ReplayQueueLength)</td>"
+			}		
+		#LogReplayQueueIncreasing
+		if ($mdbCopy.LogReplayQueueIncreasing -eq $true)
+			{
+				$errString += "<tr><td>Database Copy</td></td><td>$($mdbCopy.Name) - LogReplayQueueIncreasing</tr>"
+				$mbody += "<td class = ""bad"">$($mdbCopy.LogReplayQueueIncreasing)</td>"
+			}
+		else
+			{
+				$mbody += "<td class = ""good"">$($mdbCopy.LogReplayQueueIncreasing)</td>"				
+			}
+		#ContentIndexState
+		if ($mdbCopy.ContentIndexState -ne "Healthy")
+			{
+				$errString += "<tr><td>Database Copy</td></td><td>$($mdbCopy.Name) - ContentIndexState is $($mdbCopy.ContentIndexState)</tr>"
+				$mbody += "<td class = ""bad"">$($mdbCopy.ContentIndexState)</td>"
+			}
+		else
+			{
+				$mbody += "<td class = ""good"">$($mdbCopy.ContentIndexState)</td>"				
+			}
+		#ContentIndexErrorMessage
+		$mbody += "<td class = ""bad"">$($mdbCopy.ContentIndexErrorMessage)</td>"
+	}
+	$mbody += '</tr>'
+
+Write-Host "Done" -ForegroundColor Green
+return $mbody,$errString
+}
+
+Function Create-ServerHealthReport ($serverhealthinfo) {
 	Write-Host (Get-Date) ': Server Health Report... ' -ForegroundColor Yellow -NoNewLine
 	$mbody = @()
 	$errString = @()
@@ -437,7 +686,7 @@ $mbody += '<table id="data">'
 	{
 		if ($currentServer -ne $repl.Server)
 		{
-			$currentServer = $repl.Server
+			$currentServer = $repl.Server			
 			$mbody += '<tr><th><b><u>'+ $currentServer + '</b></u></th><th>Result</th><th>Error</th></tr>'
 		}
 	
@@ -451,6 +700,7 @@ $mbody += '<table id="data">'
 			$mbody += "<tr><td>$($repl.Check)</td><td class = ""bad"">$($repl.Result)</td><td>$($repl.Error)</td></tr>"
 		}
 	}
+	$mbody += "<hr />"
 Write-Host "Done" -ForegroundColor Green
 return $mbody,$errString
 }
@@ -482,7 +732,7 @@ $mbody += '<table id="data">'
 			}
 			else
 			{
-				$errString += "<tr><td>Disk</td></td><td>$($currentServer) - $($diskdata.DeviceID) [$($diskdata.VolumeName)] is <= $($t_DiskBadPercent)% Free</td></tr>"
+				$errString += "<tr><td>Disk</td></td><td>$($currentServer) - $($diskdata.DeviceID) [$($diskdata.VolumeName)] [$($diskdata.FreeSpace) GB / $($diskdata.PercentFree)%] is <= $($t_DiskBadPercent)% Free</td></tr>"
 				$mbody += "<tr><td>$($diskdata.DeviceID) [$($diskdata.VolumeName)] </td><td>$($diskdata.Size)</td><td>$($diskdata.FreeSpace)</td><td class = ""bad"">$($diskdata.PercentFree)</td></tr>"
 			}
 			
@@ -496,10 +746,10 @@ Write-Host (Get-Date) ': Mailbox Database Report... ' -ForegroundColor Yellow -N
 $mbody = @()
 $errString = @()
 $mbody += '<table id="SectionLabels"><tr><th class="data">Mailbox Database</th></tr></table>'
-$mbody += '<table id="data"><tr><th>Name</th><th>Mounted</th><th>On Server [Preference]</th><th>Size (GB)</th><th>White Space (GB)</th><th>Active Mailbox</th><th>Disconnected Mailbox</th><th>Item Size (GB)</th><th>Deleted Items Size (GB)</th><th>Full Backup</th><th>Incremental Backup</th><th>Backup In Progress</th><th>Mapi Connectivity</th></tr>'
+$mbody += '<table id="data"><tr><th>[Name][EDB Path][Log Path]</th><th>Mounted</th><th>On Server [Preference]</th><th>EDB Disk Size [Free] <br /> Log Disk Size [Free]</th><th>Size (GB)</th><th>White Space (GB)</th><th>Active Mailbox</th><th>Disconnected Mailbox</th><th>Item Size (GB)</th><th>Deleted Items Size (GB)</th><th>Full Backup</th><th>Incremental Backup</th><th>Backup In Progress</th><th>Mapi Connectivity</th></tr>'
 ForEach ($db in $dblist)
 {
-	
+	#$dbDetails = Get-MailboxDatabase $db.Name
 	if ($db.mounted -eq $true)
 	{
 		#Calculate backup age----------------------------------------------------------
@@ -525,11 +775,11 @@ ForEach ($db in $dblist)
 				$lastincrementalbackup = '[NO DATA]'
 			}
 			
-		[int]$full_backup_age = $lastfullbackupelapsed.hours
-		[int]$incremental_backup_age = $lastincrementalbackupelapsed.hours
+		[int]$full_backup_age = $lastfullbackupelapsed.totaldays
+		[int]$incremental_backup_age = $lastincrementalbackupelapsed.totaldays
 		#-------------------------------------------------------------------------------
 		$mbody += '<tr>'
-		$mbody += '<td>' + $db.Name + '</td>'
+		$mbody += '<td>[' + $db.Name + ']<br />['+ $db.EdbFilePath + ']<br />['+ $db.LogFolderPath + ']</td>'
 		if ($db.Mounted -eq $true) 
 		{
 			$mbody += '<td class = "good">' + $db.Mounted + '</td>'
@@ -550,12 +800,13 @@ ForEach ($db in $dblist)
 			$mbody += '<td class = "bad">' + $db.MountedOnServer + ' ['+ $db.ActivationPreference.value +']' +'</td>'
 		}
 		
+		$mbody += '<td>' + $db.EDBFreeSpace + '<br />' + $db.LogFreeSpace + '</td>'
 		$mbody += '<td>' + $db.DatabaseSize + '</td><td>' + $db.AvailableNewMailboxSpace + '</td><td>' + $db.ActiveMailboxCount + '</td><td>' + $db.DisconnectedMailboxCount + '</td><td>' + $db.TotalItemSize + '</td><td>' + $db.TotalDeletedItemSize + '</td>'
 		
 		if ($full_backup_age -gt $t_lastfullbackup)
 		{
-			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last full backup date is OLDER than $($t_lastfullbackup) hours</td></tr>"
-			$mbody += '<td class = "bad">' + $lastfullbackup + '</td>'
+			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last full backup date [$lastfullbackup] is OLDER than $($t_lastfullbackup) Day(s)</td></tr>"
+			$mbody += '<td class = "bad">' + $lastfullbackup + '</td>'		
 		}
 		Else
 		{
@@ -564,7 +815,7 @@ ForEach ($db in $dblist)
 		
 		if ($incremental_backup_age -gt $t_lastincrementalbackup)
 		{
-			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last incremental backup date OLDER than $($t_lastincrementalbackup) hours</td></tr>"
+			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last incremental backup date [$lastincrementalbackup] is OLDER than $($t_lastincrementalbackup) Day(s)</td></tr>"
 			$mbody += '<td class = "bad">' + $lastincrementalbackup + '</td>'
 		}
 		Else
@@ -624,8 +875,8 @@ ForEach ($db in $dblist)
 				$lastincrementalbackupelapsed = ''
 				$lastincrementalbackup = '[NO DATA]'
 			}
-		[int]$full_backup_age = $lastfullbackupelapsed.hours
-		[int]$incremental_backup_age = $lastincrementalbackupelapsed.hours
+		[int]$full_backup_age = $lastfullbackupelapsed.totaldays
+		[int]$incremental_backup_age = $lastincrementalbackupelapsed.totaldays
 		#-------------------------------------------------------------------------------
 		$mbody += '<tr>'
 		$mbody += '<td>' + $db.Name + '</td>'
@@ -643,7 +894,7 @@ ForEach ($db in $dblist)
 		
 		if ($full_backup_age -gt $t_lastfullbackup)
 		{
-			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last full backup date OLDER than $($t_lastfullbackup) hours</td></tr>"
+			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last full backup date [$lastfullbackup] is OLDER than $($t_lastfullbackup) days</td></tr>"
 			$mbody += '<td class = "bad">' + $lastfullbackup + '</td>'
 		}
 		Else
@@ -653,7 +904,7 @@ ForEach ($db in $dblist)
 		
 		if ($incremental_backup_age -gt $t_lastincrementalbackup)
 		{
-			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last incremental backup date OLDER than $($t_lastincrementalbackup) hours</td></tr>"
+			$errString += "<tr><td>Database Backup</td></td><td>$($db.Name) - last incremental backup date [$lastfullbackup] is OLDER than $($t_lastincrementalbackup) days</td></tr>"
 			$mbody += '<td class = "bad">' + $lastincrementalbackup + '</td>'
 		}
 		Else
@@ -676,42 +927,45 @@ Write-Host "Done" -ForegroundColor Green
 return $mbody,$errString
 }
 
-#>>SCRIPT BEGIN---------------------------------------------------------------
+#SCRIPT BEGIN---------------------------------------------------------------
 
-#>>Get-List of Exchange Servers and assign to array----------------------------
+#Get-List of Exchange Servers and assign to array----------------------------
 Write-Host (Get-Date) ': Building List of Servers - excluding Edge' -ForegroundColor Yellow
 $ExServerList = Get-ExchangeServer | ?{$_.ServerRole -notmatch 'Edge'} | Sort-Object Name
 #$ExServerList = Get-ExchangeServer | Sort-Object Name
-#>>----------------------------------------------------------------------------
-#>>Get-List of Mailbox Database and assign to array----------------------------
-if ($RunMdbReport -eq $true) {
+#----------------------------------------------------------------------------
+#Get-List of Mailbox Database and assign to array----------------------------
+if ($RunMdbReport -eq $true -OR $RunDAGCopyReport -eq $true) {
 	Write-Host (Get-Date) ': Building List of Mailbox Database' -ForegroundColor Yellow
 	$ExMailboxDBList = Get-MailboxDatabase -Status | where {$_.Recovery -eq $False}
 }
-#>>----------------------------------------------------------------------------
-#>>Get-List of Public Folder Database and assign to array----------------------
+#----------------------------------------------------------------------------
+#Get-List of Public Folder Database and assign to array----------------------
 if ($RunPdbReport -eq $true) {
 	Write-Host (Get-Date) ': Building List of Public Folder Database' -ForegroundColor Yellow
 	$ExPFDBList = Get-PublicFolderDatabase -Status | where {$_.Recovery -eq $False}
 }
-#>>----------------------------------------------------------------------------
-#>>Begin Data Extraction-------------------------------------------------------
+#----------------------------------------------------------------------------
+
+#Begin Data Extraction-------------------------------------------------------
 Write-Host '==================================================================' -ForegroundColor Green
 Write-Host (Get-Date) ': Begin Data Extraction' -ForegroundColor Yellow
 
 if ($RunServerHealthReport -eq $true) {$serverhealthdata = Get-ServerHealth($ExServerList)}
 if ($RunMdbReport -eq $true) {$mdbdata = Get-MdbStatistics ($ExMailboxDBList) | Sort-Object Name}
 if ($RunPdbReport -eq $true -AND $ExPFDBList.Count -gt 0) {$pdbdata = Get-PdbStatistics ($ExPFDBList)}
+if ($RunDAGCopyReport -eq $true) {$dagCopyData = Get-DAGCopyStatus ($ExMailboxDBList)}
 if ($RunDAGReplicationReport -eq $true) {$repldata = Get-ReplicationHealth}
 if ($RunQueueReport -eq $true) {$queueData = Get-MailQueues}
 if ($RunDiskReport -eq $true) {$diskdata = Get-DiskSpaceStatistics($ExServerList)}
-#>>----------------------------------------------------------------------------
-#>> Build Report --------------------------------------------------------------
+#----------------------------------------------------------------------------
+# Build Report --------------------------------------------------------------
 Write-Host '==================================================================' -ForegroundColor Green
 Write-Host (Get-Date) ': Create Report' -ForegroundColor Yellow
 if ($RunServerHealthReport -eq $true) {$serverhealthreport,$sError = Create-ServerHealthReport ($serverhealthdata) ; $errSummary += $sError}
 if ($RunMdbReport -eq $true) {$mdbreport,$mError = Create-MdbReport ($mdbdata) ; $errSummary += $mError}
 if ($RunPdbReport -eq $true -AND $ExPFDBList.Count -gt 0) {$pdbreport,$pError = Create-PdbReport ($pdbdata) ; $errSummary += $pError}
+if ($RunDAGCopyReport -eq $true) {$dbcopyreport,$dbCopyError = Create-DAGCopyStatusReport ($dagCopyData) ; $errSummary += $dbCopyError}
 if ($RunDAGReplicationReport -eq $true) {$replicationreport,$rError = Create-ReplicationReport ($repldata) ; $errSummary += $rError}
 if ($RunQueueReport -eq $true) {$queuereport,$qError = Create-QueueReport($queueData) ; $errSummary += $qError}
 if ($RunDiskReport -eq $true) {$diskreport,$dError = Create-DiskReport ($diskdata) ; $errSummary += $dError}
@@ -723,7 +977,7 @@ $mail_body += '<table id="HeadingInfo">'
 $mail_body += '<tr><th>' + $CompanyName + '<br />' + $MailSubject + '<br />' + $today + '</th></tr>'
 $mail_body += '</table><hr />'
 $mail_body += '<table id="SectionLabels">'
-$mail_body += '<tr><th class="data">----SUMMARY----</th></tr></table>'
+$mail_body += '<tr><th class="data">Issues</th></tr></table>'
 $mail_body += '<table id="data"><tr><th>Check Item</th><th>Details</th></tr>'
 $mail_body += $errSummary
 $mail_body += '</table><hr />'
@@ -731,44 +985,46 @@ if ($RunServerHealthReport -eq $true) {$mail_body += $serverhealthreport ; $mail
 if ($RunMdbReport -eq $true) {$mail_body += $mdbreport ; $mail_body += '</table><hr />'}
 if ($RunPdbReport -eq $true) {$mail_body += $pdbreport ; $mail_body += '</table><hr />'}
 if ($RunDAGReplicationReport -eq $true) {$mail_body += $replicationreport ; $mail_body += '</table><hr />'}
+if ($RunDAGCopyReport -eq $true) {$mail_body += $dbcopyreport ; $mail_body += '</table><hr />'}
 if ($RunQueueReport -eq $true) {$mail_body += $queuereport ; $mail_body += '</table><hr />'}
 if ($RunDiskReport -eq $true) {$mail_body += $diskreport ; $mail_body += '</table><hr />'}
-$mail_body += '<p>'
-$mail_body += '<table id="SectionLabels">'
-$mail_body += '<tr><th>----END of REPORT----</th></tr></table><hr />'
+$mail_body += '<p><table id="SectionLabels">'
+$mail_body += '<tr><th>----END of REPORT----</th></tr></table><hr /></p>'
 $mail_body += '<p><font size="2" face="Tahoma"><u>Report Paremeters</u><br />'
 $mail_body += '<b>[THRESHOLD]</b><br />'
-$mail_body += 'Last Full Backup: ' +  $t_lastfullbackup + ' hours<br />'
-$mail_body += 'Last Incremental Backup: ' + $t_lastincrementalbackup + ' hours<br />'
+$mail_body += 'Last Full Backup: ' +  $t_lastfullbackup + ' Day(s)<br />'
+$mail_body += 'Last Incremental Backup: ' + $t_lastincrementalbackup + ' Day(s)<br />'
 $mail_body += 'Mail Queue: ' + $t_mQueue+ '<br />'
 $mail_body += 'Disk Space Critical: ' + $t_DiskBadPercent+ ' (%) <br /><br />'
 $mail_body += '<b>[MAIL]</b><br />'
 $mail_body += 'SMTP Server: ' + $MailServer + '<br /><br />'
 $mail_body += '<b>[REPORT]</b><br />'
 $mail_body += 'Generated from Server: ' + (gc env:computername) + '<br />'
-$mail_body += 'Script Path: ' + $script_root
-$mail_body += '<p>'
-$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4b</a>'
+$mail_body += 'Script File: ' + $MyInvocation.MyCommand.Definition + '<br />'
+$mail_body += 'Config File: ' + $configFile + '<br />'
+$mail_body += 'Report File: ' + $reportfile + '<br />'
+$mail_body += 'Recipients: ' + $MailTo.Split(";") + '<br />'
+$mail_body += '</p><p>'
+$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.'+$scriptVersion+'</a></p>'
+$mail_body += '</html>'
 $mbody = $mbox -replace "&lt;","<"
 $mbody = $mbox -replace "&gt;",">"
 $mail_body | Out-File $reportfile
 Write-Host (Get-Date) ': HTML Report saved to file -' $reportfile -ForegroundColor Yellow
-#>>----------------------------------------------------------------------------
-#>> Mail Parameters------------------------------------------------------------
-#>> Add CC= and/or BCC= lines if you want to add recipients for CC and BCC
+#----------------------------------------------------------------------------
+# Mail Parameters------------------------------------------------------------
+# Add CC= and/or BCC= lines if you want to add recipients for CC and BCC
 $params = @{
     Body = $mail_body
     BodyAsHtml = $true
     Subject = "[$($CompanyName)] $($MailSubject) $($today)"
     From = $MailSender
-	To = $MailTo.Split(",")
+	To = $MailTo.Split(";")
     SmtpServer = $MailServer
-	#Cc = $MailCC.Split(",")
-	#Bcc = $MailBCC.Split(",")
 }
-#>>----------------------------------------------------------------------------
-#>> Send Report----------------------------------------------------------------
+#----------------------------------------------------------------------------
+# Send Report----------------------------------------------------------------
 if ($SendReportViaEmail -eq $true) {Write-Host (Get-Date) ': Sending Report' -ForegroundColor Yellow ; Send-MailMessage @params}
-#>>----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
 Write-Host (Get-Date) ': End' -ForegroundColor Green
-#>>SCRIPT END------------------------------------------------------------------
+#SCRIPT END------------------------------------------------------------------
