@@ -1,0 +1,1 @@
+powershell.exe -Command ".'D:\Program Files\Microsoft\Exchange Server\V15\Bin\RemoteExchange.ps1'; Connect-ExchangeServer -auto; C:\scripts\Get-ExchangeHealth\Get-ExchangeHealth.ps1 -configFile C:\scripts\Get-ExchangeHealth\config.xml"
