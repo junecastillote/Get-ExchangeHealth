@@ -2,13 +2,13 @@
 <configuration>
     <reportOptions
 		RunCPUandMemoryReport = "true"
-		RunServerHealthReport = "false"
-		RunMdbReport = "false"
-		RunComponentReport = "false"
+		RunServerHealthReport = "true"
+		RunMdbReport = "true"
+		RunComponentReport = "true"
 		RunPdbReport = "false"
 		RunDAGReplicationReport = "false"
-		RunQueueReport = "false"
-		RunDiskReport = "false"
+		RunQueueReport = "true"
+		RunDiskReport = "true"
 		RunDBCopyReport = "false"
 		SendReportViaEmail = "false"
 		ReportFile = "C:\Scripts\Get-ExchangeHealth\XYZ_Exchange_Hourly_Report.html"
