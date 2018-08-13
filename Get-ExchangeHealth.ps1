@@ -1,11 +1,11 @@
 <#	
 	.NOTES
 	===========================================================================
-	 Created on:   	8-Aug-2014 9:10 AM
-	 Created by:   	Tito D. Castillote Jr.
-					june.castillote@gmail.com
-	 Filename:     	Get-ExchangeHealth.ps1
-	 Version:		5.4 (13-Aug-2018)
+	Created on:		8-Aug-2014 9:10 AM
+	Author:			Tito D. Castillote Jr.
+	Email:			june.castillote@gmail.com
+	Filename:		Get-ExchangeHealth.ps1
+	Version:		5.4 (13-Aug-2018)
 	===========================================================================
 
 	.LINK
