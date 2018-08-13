@@ -9,7 +9,7 @@
 	===========================================================================
 
 	.LINK
-		http://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html
+		https://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html
 
 	.SYNOPSIS
 		Use Get-ExchangeHealth.ps1 for gathering and reporting the overall Exchange Server health.
@@ -64,13 +64,6 @@ $scriptVersion = "5.4"
 Write-Host '=================================================' -ForegroundColor Yellow
 Write-Host '              Get-ExchangeHealth		         ' -ForegroundColor Yellow
 Write-Host '=================================================' -ForegroundColor Yellow
-=======
-Write-Host '===================================================' -ForegroundColor Yellow
-Write-Host '>>          Get-ExchangeHealth v4.4b             <<' -ForegroundColor Yellow
-Write-Host '>>         june.castillote@gmail.com             <<' -ForegroundColor Yellow
-Write-Host '===================================================' -ForegroundColor Yellow
-#http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
->>>>>>> c57de071751c7f6b8e6157ab9f6d4f1802b33e1a
 Write-Host ''
 Write-Host (Get-Date) ': Begin' -ForegroundColor Green
 Write-Host (Get-Date) ': Setting Paths and Variables' -ForegroundColor Yellow
@@ -83,44 +76,10 @@ $percentPassed = 0
 $overAllResult = "PASSED"
 $errSummary = ""
 $today = '{0:dd-MMM-yyyy hh:mm tt}' -f (Get-Date)
-<<<<<<< HEAD
 
 $css_string = @'
 <style type="text/css">
 #HeadingInfo 
-=======
-$script_root = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-$css_string = '<style type="text/css"> #HeadingInfo { font-family:Tahoma, "Trebuchet MS", Arial, Helvetica, sans-serif; width:100%; border-collapse:collapse; } #HeadingInfo td, #HeadingInfo th { font-size:0.9em; padding:3px 7px 2px 7px; } #HeadingInfo th  { font-size:1.0em; font-weight:bold; text-align:center; padding-top:5px; padding-bottom:4px; background-color:#CC3300; color:#fff; } #SectionLabels { font-family:Tahoma, "Trebuchet MS", Arial, Helvetica, sans-serif; width:100%; border-collapse:collapse; } #SectionLabels th.data { font-size:0.8em; text-align:center; padding-top:5px; padding-bottom:4px; background-color:#A7C942; color:#fff; } #data { font-family:Consolas,Tahoma, "Trebuchet MS", Arial, Helvetica, sans-serif; width:100%; border-collapse:collapse; } #data td, #data th  { font-size:0.8em; border:1px solid #98bf21; padding:3px 7px 2px 7px; } #data th  { font-size:0.8em; padding-top:5px; padding-bottom:4px; background-color:#A7C942; color:#fff; text-align:left; } #data td { font-size:0.8em; padding-top:5px; padding-bottom:4px; text-align:left; } #data td.bad { font-size:0.8em; font-weight: bold; padding-top:5px; padding-bottom:4px; background-color:red; } #data td.good { font-size:0.8em; font-weight: bold; padding-top:5px; padding-bottom:4px; color:green; }</style> </head> <body> <hr />'
-$reportfile = $script_root + "\DbAndDiskReport_" + ('{0:dd_MMM_yyyy}' -f (Get-Date)) + ".html"
-#>>------------------------------------------------------------------------------
-#>>Thresholds--------------------------------------------------------------------
-[int]$t_lastfullbackup = 171 #hours
-[int]$t_lastincrementalbackup = 27 #hours
-[int]$t_DiskBadPercent = 12
-[int]$t_mQueue = 20
-#>>------------------------------------------------------------------------------
-#>>Options, set to $false if you do not want to run a specific report------------
-$RunServerHealthReport = $true
-$RunMdbReport = $true
-$RunPdbReport = $true
-$RunDAGReplicationReport = $true
-$RunQueueReport = $true
-$RunDiskReport = $true
-$SendReportViaEmail = $true
-#>>------------------------------------------------------------------------------
-#>>Mail
-$CompanyName = 'Company Name Here'
-$MailSubject = 'Exchange Service Health Report '
-$MailServer = 'SMTP RELAY HERE'
-$MailSender = 'Sender Name <sender@domain.com>'
-$MailTo = 'recipient address here'
-$MailCC = '' #if you specify a CC address, make sure to uncomment the CC line in the $params variable block
-$MailBCC = '' #if you specify a BCC address, make sure to uncomment the BCC line in the $params variable block
-#>>------------------------------------------------------------------------------
-#>>Import Exchange 2010 Shell Snap-In if not already added-----------------------
-
-	if (!(Get-PSSnapin | where {$_.Name -eq "Microsoft.Exchange.Management.PowerShell.E2010"}))
->>>>>>> c57de071751c7f6b8e6157ab9f6d4f1802b33e1a
 	{
 		font-family:"Segoe UI";
 		width:100%;
@@ -592,12 +551,6 @@ Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNew
 					#Mail Flow
 					if ($server.serverrole -match 'Mailbox' -AND $activeServers -contains $server.name)
 					{
-<<<<<<< HEAD
-=======
-						#Exchange 2013
-						if ($server.AdminDisplayVersion -like 'Version 15*') 
-						{
->>>>>>> c57de071751c7f6b8e6157ab9f6d4f1802b33e1a
 							$mailflowresult = $null
 							$result = Test-MailFlow -TargetMailboxServer $server.Name
 							$mailflowresult = $result.TestMailflowResult
@@ -632,7 +585,7 @@ Function Get-ServerHealthReport ($serverhealthinfo) {
 	$testFailed = 0
 	$mbody = @()
 	$errString = @()
-	#$currentServer = ""
+	$currentServer = ""
 	$mbody += '<table id="SectionLabels"><tr><th class="data">Server Health Status</th></tr></table>'
 	$mbody += '<table id="data">'
 	$mbody += '<tr><th>Server</th><th>Version / Edition</th><th>Site</th><th>Connectivity</th><th>Up Time (Hours)</th><th>Hub Transport Role</th><th>Client Access Role</th><th>Mailbox Role</th><th>Mail Flow</th></tr>'
@@ -920,7 +873,7 @@ $mbody += '<table id="data">'
 	$mbody += ""
 if($errString) {$mResult = "<tr><td>DAG Members Replication</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1}
 Write-Host "Done" -ForegroundColor Green
-return $mbody,$errString,$mResult,$testFailed
+return $mbody,$errString,$mResult
 }
 
 Function Get-ServerComponentStateReport ($serverComponentStateInfo) {
@@ -1406,7 +1359,6 @@ $mail_body += 'Memory: ' + $t_ramUsage+ ' (%) <br /><br />'
 $mail_body += '<b>[MAIL]</b><br />'
 $mail_body += 'SMTP Server: ' + $MailServer + '<br /><br />'
 $mail_body += '<b>[REPORT]</b><br />'
-<<<<<<< HEAD
 $mail_body += 'Generated from Server: ' + (Get-Content env:computername) + '<br />'
 $mail_body += 'Script File: ' + $MyInvocation.MyCommand.Definition + '<br />'
 $mail_body += 'Config File: ' + $configFile + '<br />'
@@ -1417,14 +1369,8 @@ $mail_body += 'Excluded Servers: ' + $config.configuration.exclusions.IgnoreServ
 $mail_body += 'Excluded Mailbox Database: ' + $config.configuration.exclusions.IgnoreDatabase + '<br />'
 $mail_body += 'Excluded Public Database: ' + $config.configuration.exclusions.IgnorePFDatabase + '<br /><br />'
 $mail_body += '</p><p>'
-$mail_body += '<a href="https://github.com/junecastillote/Get-ExchangeHealth">Exchange Server Health Check v.'+$scriptVersion+'</a></p>'
+$mail_body += '<a href="https://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server Health Check v.'+$scriptVersion+'</a></p>'
 $mail_body += '</html>'
-=======
-$mail_body += 'Generated from Server: ' + (gc env:computername) + '<br />'
-$mail_body += 'Script Path: ' + $script_root
-$mail_body += '<p>'
-$mail_body += '<a href="http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server 2010 Health Check v.4.4b</a>'
->>>>>>> c57de071751c7f6b8e6157ab9f6d4f1802b33e1a
 $mbody = $mbox -replace "&lt;","<"
 $mbody = $mbox -replace "&gt;",">"
 $mail_body | Out-File $reportfile
@@ -1439,8 +1385,6 @@ $params = @{
     From = $MailSender
 	To = $MailTo.Split(";")
     SmtpServer = $MailServer
-	#Cc = $MailCC.Split(",")
-	#Bcc = $MailBCC.Split(",")
 }
 #----------------------------------------------------------------------------
 # Send Report----------------------------------------------------------------
@@ -1457,5 +1401,5 @@ Write-Host "======================================"
 Write-Host ""
 Write-Host (Get-Date) ': End' -ForegroundColor Green
 #SCRIPT END------------------------------------------------------------------
-#http://shaking-off-the-cobwebs.blogspot.com/2015/03/database-backup-and-disk-space-report.html
+#https://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html
 if ($enableDebug) {Stop-Transcript}
