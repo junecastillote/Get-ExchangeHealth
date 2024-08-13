@@ -1,43 +1,46 @@
-<#
-	.NOTES
-	===========================================================================
-	Created on:		8-Aug-2014 9:10 AM
-	Author:			Tito D. Castillote Jr.
-	Email:			june.castillote@gmail.com
-	Filename:		Get-ExchangeHealth.ps1
-	Version:		5.4 (13-Aug-2018)
-	===========================================================================
 
-	.LINK
-		https://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html
+<#PSScriptInfo
 
-	.SYNOPSIS
-		Use Get-ExchangeHealth.ps1 for gathering and reporting the overall Exchange Server health.
+.VERSION 6.0
 
-	.DESCRIPTION
-		Test and report include:
-		* Server Health (Up Time, Server Roles Services, Mail flow,...)
-		* Mailbox Database Status (Mounted, Backup, Size and Space, Mailbox Count, Paths,...)
-		* Public Folder Database Status (Mount, Backup, Size and Space,...)
-		* Database Copy Status
-		* Database Replication Status
-		* Mail Queue
-		* Disk Space
-		* Server Components (for Exchange 2013/2016)
+.GUID d2f58251-eef9-4c92-b19c-10e98387b5c3
 
-	.PARAMETER configFile
-		Required switch to specify the file name of the configuration XML file to use (e.g. config.xml)
+.AUTHOR June Castillote
 
-	.PARAMETER enableDebug
-		Optional switch to enable logging
+.COMPANYNAME
 
-	.EXAMPLE
-		.\Get-ExchangeHealth.ps1 -configFile .\config.xml
+.COPYRIGHT
 
-		This will read the configuration from config.xml and perform the enabled tests, create report, send via email - if enabled.
+.TAGS
+
+.LICENSEURI
+
+.PROJECTURI https://github.com/junecastillote/MS365HealthReport
+
+.ICONURI
+
+.EXTERNALMODULEDEPENDENCIES
+
+.REQUIREDSCRIPTS
+
+.EXTERNALSCRIPTDEPENDENCIES
+
+.RELEASENOTES
+
+.PRIVATEDATA
+{
+  "ReleaseDate": "2024-03-13"
+}
+
 #>
 
-#parameter bindings
+<#
+
+.DESCRIPTION
+ Use Get-ExchangeHealth.ps1 for gathering and reporting the overall Exchange Server health.
+
+#>
+
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
@@ -45,7 +48,8 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$enableDebug
 )
-
+$script_info = Test-ScriptFileInfo $MyInvocation.MyCommand.Definition
+$script_data = $script_info.PrivateData | ConvertFrom-Json
 $script_root = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 if ($enableDebug) { Start-Transcript -Path ($script_root + "\debugLog.txt") }
 
@@ -54,22 +58,26 @@ if ((Test-Path $configFile) -eq $false) {
     Write-Host "ERROR: File $($configFile) does not exist. Script cannot continue" -ForegroundColor Yellow
     "ERROR: File $($configFile) does not exist. Script cannot continue" | Out-File error.txt
     if ($enableDebug) { Stop-Transcript }
-    EXIT
+    return $null
 }
-[xml]$config = Get-Content $configFile
 
-#Start Script
-$scriptVersion = "5.4"
-Write-Host '=================================================' -ForegroundColor Yellow
-Write-Host '              Get-ExchangeHealth		         ' -ForegroundColor Yellow
-Write-Host '=================================================' -ForegroundColor Yellow
+$config = Import-PowerShellDataFile $configFile
+
+# Start Script
+$hr = "=" * ($script_info.ProjectUri.OriginalString.Length + 15)
+Write-Host $hr -ForegroundColor Yellow
+Write-Host "Name         : $($script_info.Name)" -ForegroundColor Yellow
+Write-Host "Version      : $($script_info.Version)" -ForegroundColor Yellow
+Write-Host "Release Date : $($script_data.ReleaseDate)" -ForegroundColor Yellow
+Write-Host "Repository   : $($script_info.ProjectUri.OriginalString)" -ForegroundColor Yellow
+Write-Host $hr -ForegroundColor Yellow
 Write-Host ''
 Write-Host (Get-Date) ': Begin' -ForegroundColor Green
 Write-Host (Get-Date) ': Setting Paths and Variables' -ForegroundColor Yellow
 
 #Define Variables
 $testCount = 0
-$testFailed = 0
+$script:testFailed = 0
 $testPassed = 0
 $percentPassed = 0
 $overAllResult = "PASSED"
@@ -183,44 +191,41 @@ $css_string = @'
 '@
 
 #Thresholds from config
-[int]$t_lastfullbackup = $config.configuration.thresholds.LastFullBackup
-[int]$t_lastincrementalbackup = $config.configuration.thresholds.LastIncrementalBackup
-[int]$t_DiskBadPercent = $config.configuration.thresholds.DiskSpaceFree
-[int]$t_mQueue = $config.configuration.thresholds.MailQueueCount
-[int]$t_copyQueue = $config.configuration.thresholds.CopyQueueLenght
-[int]$t_replayQueue = $config.configuration.thresholds.ReplayQueueLenght
-[int]$t_cpuUsage = $config.configuration.thresholds.cpuUsage
-[int]$t_ramUsage = $config.configuration.thresholds.ramUsage
+[int]$t_lastfullbackup = $config.thresholds.LastFullBackup
+[int]$t_lastincrementalbackup = $config.thresholds.LastIncrementalBackup
+[int]$t_DiskBadPercent = $config.thresholds.DiskSpaceFree
+[int]$t_mQueue = $config.thresholds.MailQueueCount
+[int]$t_copyQueue = $config.thresholds.CopyQueueLenght
+[int]$t_replayQueue = $config.thresholds.ReplayQueueLenght
+[int]$t_cpuUsage = $config.thresholds.CpuUsage
+[int]$t_ramUsage = $config.thresholds.RamUsage
 
 #Options from config
-$RunCPUandMemoryReport = $config.configuration.reportOptions.RunCPUandMemoryReport
-$RunServerHealthReport = $config.configuration.reportOptions.RunServerHealthReport
-$RunMdbReport = $config.configuration.reportOptions.RunMdbReport
-$RunComponentReport = $config.configuration.reportOptions.RunComponentReport
-$RunPdbReport = $config.configuration.reportOptions.RunPdbReport
-$RunDBCopyReport = $config.configuration.reportOptions.RunDBCopyReport
-$RunDAGReplicationReport = $config.configuration.reportOptions.RunDAGReplicationReport
-$RunQueueReport = $config.configuration.reportOptions.RunQueueReport
-$RunDiskReport = $config.configuration.reportOptions.RunDiskReport
-$SendReportViaEmail = $config.configuration.reportOptions.SendReportViaEmail
-$reportfile = $config.configuration.reportOptions.ReportFile
+$RunCPUandMemoryReport = $config.reportOptions.RunCPUandMemoryReport
+$RunServerHealthReport = $config.reportOptions.RunServerHealthReport
+$RunMdbReport = $config.reportOptions.RunMdbReport
+$RunComponentReport = $config.reportOptions.RunComponentReport
+$RunPdbReport = $config.reportOptions.RunPdbReport
+$RunDBCopyReport = $config.reportOptions.RunDBCopyReport
+$RunDAGReplicationReport = $config.reportOptions.RunDAGReplicationReport
+$RunQueueReport = $config.reportOptions.RunQueueReport
+$RunDiskReport = $config.reportOptions.RunDiskReport
+$SendReportViaEmail = $config.reportOptions.SendReportViaEmail
+$reportfile = $config.reportOptions.ReportFile
 
 #Mail settings
-$CompanyName = $config.configuration.mailAndReportParameters.CompanyName
-$MailSubject = $config.configuration.mailAndReportParameters.MailSubject
-$MailServer = $config.configuration.mailAndReportParameters.MailServer
-$MailSender = $config.configuration.mailAndReportParameters.MailSender
-$MailTo = $config.configuration.mailAndReportParameters.MailTo
+$CompanyName = $config.mailAndReportParameters.CompanyName
+$MailSubject = $config.mailAndReportParameters.MailSubject
+$MailServer = $config.mailAndReportParameters.MailServer
+$MailSender = $config.mailAndReportParameters.MailSender
+$MailTo = @($config.mailAndReportParameters.MailTo)
+$MailCc = @($config.mailAndReportParameters.MailCc)
+$MailBcc = @($config.mailAndReportParameters.MailBcc)
 
 #Exclusions
-$IgnoreServer = $config.configuration.exclusions.IgnoreServer
-if ($IgnoreServer -ne "") { $IgnoreServer = ($config.configuration.exclusions.IgnoreServer).Split(",") } else { $IgnoreServer = @() }
-
-$IgnoreDatabase = $config.configuration.exclusions.IgnoreDatabase
-if ($IgnoreDatabase -ne "") { $IgnoreDatabase = ($config.configuration.exclusions.IgnoreDatabase).Split(",") } else { $IgnoreDatabase = @() }
-
-$IgnorePFDatabase = $config.configuration.exclusions.IgnorePFDatabase
-if ($IgnorePFDatabase -ne "") { $IgnorePFDatabase = ($config.configuration.exclusions.IgnorePFDatabase).Split(",") } else { $IgnorePFDatabase = @() }
+$IgnoreServer = @($config.exclusions.IgnoreServer)
+$IgnoreDatabase = @($config.exclusions.IgnoreDatabase)
+$IgnorePFDatabase = @($config.exclusions.IgnorePFDatabase)
 
 Function Get-CPUAndMemoryLoad ($exchangeServers) {
     $stats_collection = @()
@@ -250,7 +255,6 @@ Function Get-CPUAndMemoryLoad ($exchangeServers) {
             }
         }
         $cpuMemObject.Top_CPU_Consumers = $TopProcessCPU
-
 
         Write-Host (Get-Date) ": Getting Memory Load for" $exchangeServer.Name -ForegroundColor Yellow
         $memObj = Get-WmiObject -ComputerName $exchangeServer.Name -Class Win32_operatingsystem -Property CSName, TotalVisibleMemorySize, FreePhysicalMemory
@@ -544,7 +548,7 @@ Function Get-ServerHealth ($serverlist) {
 Function Get-ServerHealthReport ($serverhealthinfo) {
     Write-Host (Get-Date) ': Server Health Report... ' -ForegroundColor Yellow -NoNewline
     $mResult = "<tr><td>Server Health Status</td><td class = ""good"">Passed</td></tr>"
-    $testFailed = 0
+    $script:testFailed = 0
     $mbody = @()
     $errString = @()
     #$currentServer = ""
@@ -769,7 +773,7 @@ Function Get-QueueReport ($queueInfo) {
 Function Get-ReplicationReport ($replInfo) {
     Write-Host (Get-Date) ': Replication Health Report... ' -ForegroundColor Yellow -NoNewline
     $mResult = "<tr><td>DAG Members Replication</td><td class = ""good"">Passed</td></tr>"
-    $testFailed = 0
+    $script:testFailed = 0
     $mbody = @()
     $errString = @()
     $currentServer = ""
@@ -1234,14 +1238,14 @@ $mail_body += 'Config File: ' + $configFile + '<br />'
 $mail_body += 'Report File: ' + $reportfile + '<br />'
 $mail_body += 'Recipients: ' + $MailTo.Split(";") + '<br /><br />'
 $mail_body += '<b>[EXCLUSIONS]</b><br />'
-$mail_body += 'Excluded Servers: ' + $config.configuration.exclusions.IgnoreServer + '<br />'
-$mail_body += 'Excluded Mailbox Database: ' + $config.configuration.exclusions.IgnoreDatabase + '<br />'
-$mail_body += 'Excluded Public Database: ' + $config.configuration.exclusions.IgnorePFDatabase + '<br /><br />'
+$mail_body += 'Excluded Servers: ' + $config.exclusions.IgnoreServer + '<br />'
+$mail_body += 'Excluded Mailbox Database: ' + $config.exclusions.IgnoreDatabase + '<br />'
+$mail_body += 'Excluded Public Database: ' + $config.exclusions.IgnorePFDatabase + '<br /><br />'
 $mail_body += '</p><p>'
-$mail_body += '<a href="https://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html">Exchange Server Health Check v.' + $scriptVersion + '</a></p>'
+$mail_body += '<a href="' + $script_info.ProjectUri.OriginalString + '">' + $script_info.Name + ' ' + $script_info.Version.ToString() + '</a></p>'
 $mail_body += '</html>'
-$mbody = $mbox -replace "&lt;", "<"
-$mbody = $mbox -replace "&gt;", ">"
+# $mbody = $mbox -replace "&lt;", "<"
+# $mbody = $mbox -replace "&gt;", ">"
 $mail_body | Out-File $reportfile
 Write-Host (Get-Date) ': HTML Report saved to file -' $reportfile -ForegroundColor Yellow
 #----------------------------------------------------------------------------
@@ -1252,9 +1256,13 @@ $params = @{
     BodyAsHtml = $true
     Subject    = "[$($CompanyName)] $($MailSubject) $($today)"
     From       = $MailSender
-    To         = $MailTo.Split(";")
     SmtpServer = $MailServer
 }
+
+if ($MailTo) { $params.Add('To', $MailTo) }
+if ($MailCc) { $params.Add('Cc', $MailCc) }
+if ($MailBcc) { $params.Add('Bcc', $MailBcc) }
+
 #----------------------------------------------------------------------------
 # Send Report----------------------------------------------------------------
 if ($SendReportViaEmail -eq $true) { Write-Host (Get-Date) ': Sending Report' -ForegroundColor Yellow ; Send-MailMessage @params }
@@ -1272,3 +1280,5 @@ Write-Host (Get-Date) ': End' -ForegroundColor Green
 #SCRIPT END------------------------------------------------------------------
 #https://www.lazyexchangeadmin.com/2015/03/database-backup-and-disk-space-report.html
 if ($enableDebug) { Stop-Transcript }
+
+

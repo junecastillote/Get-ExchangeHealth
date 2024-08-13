@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <configuration>
-    <reportOptions
+	<reportOptions
 		RunCPUandMemoryReport = "true"
 		RunServerHealthReport = "true"
 		RunMdbReport = "true"
@@ -11,8 +11,7 @@
 		RunDiskReport = "true"
 		RunDBCopyReport = "false"
 		SendReportViaEmail = "false"
-		ReportFile = "C:\Scripts\Get-ExchangeHealth\XYZ_Exchange_Hourly_Report.html"
-	/>
+		ReportFile = "C:\Scripts\Get-ExchangeHealth\XYZ_Exchange_Hourly_Report.html" />
 	<thresholds
 		LastFullBackup = "7"
 		LastIncrementalBackup = "1"
@@ -21,19 +20,15 @@
 		CopyQueueLenght = "10"
 		ReplayQueueLenght = "10"
 		cpuUsage = "60"
-		ramUsage = "80"
-		
-	/>
+		ramUsage = "80" />
 	<mailAndReportParameters
 		CompanyName = "XYZ"
 		MailSubject = "Exchange Service Health Report"
 		MailServer = "192.168.56.30"
 		MailSender = "XYZ PostMaster &lt;exchange-Admin@XYZ.com.au&gt;"
-		MailTo = "administrator@xyz.com"
-	/>
+		MailTo = "administrator@xyz.com" />
 	<exclusions
 		IgnoreServer = ""
 		IgnoreDatabase = ""
-		IgnorePFDatabase = ""
-	/>
- </configuration>
+		IgnorePFDatabase = "" />
+</configuration>
