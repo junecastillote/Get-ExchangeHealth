@@ -522,7 +522,6 @@ Function Get-ServerHealth ($serverlist) {
                 $result = Test-MailFlow -TargetMailboxServer $server.Name
                 $mailflowresult = $result.TestMailflowResult
                 $serverObj.MailFlow = $mailflowresult
-                # $serverObj.MailFlow = "OK"
             }
         }
         else {
@@ -628,6 +627,9 @@ Function Get-DatabaseCopyStatus ($mailboxdblist) {
     $stats_collection = @()
 
     foreach ($db in $mailboxdblist) {
+        if ($db.DatabaseCopies.Count -lt 2) {
+            continue
+        }
         #if ($db.MasterType -eq 'DatabaseAvailabilityGroup')
         #{
         foreach ($dbCopy in $db.DatabaseCopies) {
@@ -714,6 +716,9 @@ Function Get-DAGCopyStatusReport ($mdbCopyStatus) {
             $mbody += "<td class = ""good"">$($mdbCopy.ContentIndexState)</td>"
         }
         elseif ($mdbCopy.ContentIndexState -eq "Disabled") {
+            $mbody += "<td class = ""good"">$($mdbCopy.ContentIndexState)</td>"
+        }
+        elseif ($mdbCopy.ContentIndexState -eq "NotApplicable") {
             $mbody += "<td class = ""good"">$($mdbCopy.ContentIndexState)</td>"
         }
         else {
