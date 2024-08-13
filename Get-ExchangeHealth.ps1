@@ -211,7 +211,7 @@ $RunDAGReplicationReport = $config.reportOptions.RunDAGReplicationReport
 $RunQueueReport = $config.reportOptions.RunQueueReport
 $RunDiskReport = $config.reportOptions.RunDiskReport
 $SendReportViaEmail = $config.reportOptions.SendReportViaEmail
-$reportfile = $config.reportOptions.ReportFile
+$reportfile = (Resolve-Path $config.reportOptions.ReportFile).Path
 
 #Mail settings
 $CompanyName = $config.mailAndReportParameters.CompanyName
@@ -226,6 +226,7 @@ $MailBcc = @($config.mailAndReportParameters.MailBcc)
 $IgnoreServer = @($config.exclusions.IgnoreServer)
 $IgnoreDatabase = @($config.exclusions.IgnoreDatabase)
 $IgnorePFDatabase = @($config.exclusions.IgnorePFDatabase)
+$IgnoreComponent = @($config.exclusions.IgnoreComponent)
 
 Function Get-CPUAndMemoryLoad ($exchangeServers) {
     $stats_collection = @()
@@ -738,7 +739,7 @@ Function Get-ExServerComponents ($exServerList) {
     Write-Host (Get-Date) ': Server Component State... ' -ForegroundColor Yellow -NoNewline
     foreach ($exServer in $exServerList) {
         #$stats_collection += (Get-ServerComponentState $exServer | Where-Object {$_.State -ne 'Active'} | Select-Object Identity,Component,State)
-        $stats_collection += (Get-ServerComponentState $exServer | Select-Object Identity, Component, State)
+        $stats_collection += (Get-ServerComponentState $exServer | Where-Object { $_.Component -notin $IgnoreComponent } | Select-Object Identity, Component, State)
     }
     Write-Host "Done" -ForegroundColor Green
     return $stats_collection
@@ -1242,9 +1243,10 @@ $mail_body += 'Generated from Server: ' + ($env:computername) + '<br />'
 $mail_body += 'Script File: ' + $MyInvocation.MyCommand.Definition + '<br />'
 $mail_body += 'Config File: ' + $configFile + '<br />'
 $mail_body += 'Report File: ' + $reportfile + '<br />'
-$mail_body += 'Recipients: ' + $MailTo.Split(";") + '<br /><br />'
+$mail_body += 'Recipients: ' + ($MailTo -join ';') + '<br /><br />'
 $mail_body += '<b>[EXCLUSIONS]</b><br />'
 $mail_body += 'Excluded Servers: ' + (@($config.exclusions.IgnoreServer) -join ';') + '<br />'
+$mail_body += 'Excluded Components: ' + (@($config.exclusions.IgnoreComponent) -join ';') + '<br />'
 $mail_body += 'Excluded Mailbox Database: ' + (@($config.exclusions.IgnoreDatabase) -join ';') + '<br />'
 $mail_body += 'Excluded Public Database: ' + (@($config.exclusions.IgnorePFDatabase) -join ';') + '<br /><br />'
 $mail_body += '</p><p>'
