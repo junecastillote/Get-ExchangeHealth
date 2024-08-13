@@ -522,6 +522,7 @@ Function Get-ServerHealth ($serverlist) {
                 $result = Test-MailFlow -TargetMailboxServer $server.Name
                 $mailflowresult = $result.TestMailflowResult
                 $serverObj.MailFlow = $mailflowresult
+                # $serverObj.MailFlow = "OK"
             }
         }
         else {
@@ -1232,15 +1233,15 @@ $mail_body += 'Memory: ' + $t_ramUsage + ' (%) <br /><br />'
 $mail_body += '<b>[MAIL]</b><br />'
 $mail_body += 'SMTP Server: ' + $MailServer + '<br /><br />'
 $mail_body += '<b>[REPORT]</b><br />'
-$mail_body += 'Generated from Server: ' + (Get-Content env:computername) + '<br />'
+$mail_body += 'Generated from Server: ' + ($env:computername) + '<br />'
 $mail_body += 'Script File: ' + $MyInvocation.MyCommand.Definition + '<br />'
 $mail_body += 'Config File: ' + $configFile + '<br />'
 $mail_body += 'Report File: ' + $reportfile + '<br />'
 $mail_body += 'Recipients: ' + $MailTo.Split(";") + '<br /><br />'
 $mail_body += '<b>[EXCLUSIONS]</b><br />'
-$mail_body += 'Excluded Servers: ' + $config.exclusions.IgnoreServer + '<br />'
-$mail_body += 'Excluded Mailbox Database: ' + $config.exclusions.IgnoreDatabase + '<br />'
-$mail_body += 'Excluded Public Database: ' + $config.exclusions.IgnorePFDatabase + '<br /><br />'
+$mail_body += 'Excluded Servers: ' + (@($config.exclusions.IgnoreServer) -join ';') + '<br />'
+$mail_body += 'Excluded Mailbox Database: ' + (@($config.exclusions.IgnoreDatabase) -join ';') + '<br />'
+$mail_body += 'Excluded Public Database: ' + (@($config.exclusions.IgnorePFDatabase) -join ';') + '<br /><br />'
 $mail_body += '</p><p>'
 $mail_body += '<a href="' + $script_info.ProjectUri.OriginalString + '">' + $script_info.Name + ' ' + $script_info.Version.ToString() + '</a></p>'
 $mail_body += '</html>'

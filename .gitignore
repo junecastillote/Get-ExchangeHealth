@@ -43,3 +43,7 @@ Temporary Items
 .apdisk
 
 /ignore/
+
+demo*
+run*
+*.html
