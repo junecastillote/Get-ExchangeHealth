@@ -49,7 +49,7 @@ param (
     [switch]$enableDebug
 )
 $script_info = Test-ScriptFileInfo $MyInvocation.MyCommand.Definition
-$script_data = $script_info.PrivateData | ConvertFrom-Json
+# $script_data = $script_info.PrivateData | ConvertFrom-Json
 $script_root = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 if ($enableDebug) { Start-Transcript -Path ($script_root + "\debugLog.txt") }
 
@@ -77,7 +77,7 @@ Write-Host (Get-Date) ': Setting Paths and Variables' -ForegroundColor Yellow
 
 #Define Variables
 $testCount = 0
-$script:testFailed = 0
+$testFailed = 0
 $testPassed = 0
 $percentPassed = 0
 $overAllResult = "PASSED"
@@ -548,7 +548,7 @@ Function Get-ServerHealth ($serverlist) {
 Function Get-ServerHealthReport ($serverhealthinfo) {
     Write-Host (Get-Date) ': Server Health Report... ' -ForegroundColor Yellow -NoNewline
     $mResult = "<tr><td>Server Health Status</td><td class = ""good"">Passed</td></tr>"
-    $script:testFailed = 0
+    $testFailed = 0
     $mbody = @()
     $errString = @()
     #$currentServer = ""
@@ -773,7 +773,7 @@ Function Get-QueueReport ($queueInfo) {
 Function Get-ReplicationReport ($replInfo) {
     Write-Host (Get-Date) ': Replication Health Report... ' -ForegroundColor Yellow -NoNewline
     $mResult = "<tr><td>DAG Members Replication</td><td class = ""good"">Passed</td></tr>"
-    $script:testFailed = 0
+    $testFailed = 0
     $mbody = @()
     $errString = @()
     $currentServer = ""
@@ -1257,6 +1257,8 @@ $params = @{
     Subject    = "[$($CompanyName)] $($MailSubject) $($today)"
     From       = $MailSender
     SmtpServer = $MailServer
+    UseSsl     = $config.mailAndReportParameters.SSLEnabled
+    Port       = $config.mailAndReportParameters.Port
 }
 
 if ($MailTo) { $params.Add('To', $MailTo) }

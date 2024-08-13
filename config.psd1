@@ -30,6 +30,8 @@
         MailTo      = @('administrator@xyz.com')
         MailCc      = @()
         MailBcc     = @()
+        SSLEnabled  = $false
+        Port        = 25
     }
     exclusions              = @{
         IgnoreServer     = @()
