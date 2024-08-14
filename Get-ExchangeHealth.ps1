@@ -53,6 +53,31 @@ $script_info = Test-ScriptFileInfo $MyInvocation.MyCommand.Definition
 $script_root = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 if ($enableDebug) { Start-Transcript -Path ($script_root + "\debugLog.txt") }
 
+Function BuildNumberToName {
+    param (
+        [string]$BuildNumber
+    )
+    $definitions = Import-Csv "$script_root\ExchangeBuildNumbers.csv"
+    $definitions | Where-Object { $_.'Build Number' -eq $BuildNumber }
+}
+
+
+Function TrimExchangeVersion {
+    # This function formats the AdminDisplayVersion to Build Number
+    # ie. "Version 15.2 (Build 1258.12)" to "15.2.1258.12"
+    param (
+        [string]$AdminDisplayVersion
+    )
+    $AdminDisplayVersion.ToString().Replace('Version ', '').Replace(' (Build ', '.').replace(')', '')
+}
+
+Function AdminDisplayVersionToName {
+    param(
+        [string]$AdminDisplayVersion
+    )
+    BuildNumberToName (TrimExchangeVersion $AdminDisplayVersion)
+}
+
 #Import Configuration File
 if ((Test-Path $configFile) -eq $false) {
     Write-Host "ERROR: File $($configFile) does not exist. Script cannot continue" -ForegroundColor Yellow
@@ -64,12 +89,15 @@ if ((Test-Path $configFile) -eq $false) {
 $config = Import-PowerShellDataFile $configFile
 
 # Start Script
-$hr = "=" * ($script_info.ProjectUri.OriginalString.Length + 15)
+# $hr = "=" * ($script_info.ProjectUri.OriginalString.Length + 15)
+$hr = "=" * ($script_info.ProjectUri.OriginalString.Length)
 Write-Host $hr -ForegroundColor Yellow
-Write-Host "Name         : $($script_info.Name)" -ForegroundColor Yellow
-Write-Host "Version      : $($script_info.Version)" -ForegroundColor Yellow
-Write-Host "Release Date : $($script_data.ReleaseDate)" -ForegroundColor Yellow
-Write-Host "Repository   : $($script_info.ProjectUri.OriginalString)" -ForegroundColor Yellow
+# Write-Host "Name         : $($script_info.Name) $($script_info.Version)" -ForegroundColor Yellow
+Write-Host "$($script_info.Name) $($script_info.Version)" -ForegroundColor Yellow
+# Write-Host "Version      : $($script_info.Version)" -ForegroundColor Yellow
+# Write-Host "Release Date : $($script_data.ReleaseDate)" -ForegroundColor Yellow
+Write-Host "$($script_info.ProjectUri.OriginalString)" -ForegroundColor Yellow
+# Write-Host "Repository   : $($script_info.ProjectUri.OriginalString)" -ForegroundColor Yellow
 Write-Host $hr -ForegroundColor Yellow
 Write-Host ''
 Write-Host (Get-Date) ': Begin' -ForegroundColor Green
@@ -193,12 +221,12 @@ $css_string = @'
 #Thresholds from config
 [int]$t_lastfullbackup = $config.thresholds.LastFullBackup
 [int]$t_lastincrementalbackup = $config.thresholds.LastIncrementalBackup
-[int]$t_DiskBadPercent = $config.thresholds.DiskSpaceFree
+[double]$t_DiskBadPercent = $config.thresholds.DiskSpaceFree
 [int]$t_mQueue = $config.thresholds.MailQueueCount
 [int]$t_copyQueue = $config.thresholds.CopyQueueLenght
 [int]$t_replayQueue = $config.thresholds.ReplayQueueLenght
-[int]$t_cpuUsage = $config.thresholds.CpuUsage
-[int]$t_ramUsage = $config.thresholds.RamUsage
+[double]$t_cpuUsage = $config.thresholds.CpuUsage
+[double]$t_ramUsage = $config.thresholds.RamUsage
 
 #Options from config
 $RunCPUandMemoryReport = $config.reportOptions.RunCPUandMemoryReport
@@ -211,7 +239,9 @@ $RunDAGReplicationReport = $config.reportOptions.RunDAGReplicationReport
 $RunQueueReport = $config.reportOptions.RunQueueReport
 $RunDiskReport = $config.reportOptions.RunDiskReport
 $SendReportViaEmail = $config.reportOptions.SendReportViaEmail
-$reportfile = (Resolve-Path $config.reportOptions.ReportFile).Path
+# $reportfile = $config.reportOptions.ReportFile
+$reportfile = (New-Item -ItemType File -Path $config.reportOptions.ReportFile -Force).FullName
+
 
 #Mail settings
 $CompanyName = $config.mailAndReportParameters.CompanyName
@@ -299,7 +329,7 @@ Function Ping-Server ($server) {
 }
 
 Function Get-MdbStatistics ($mailboxdblist) {
-    Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Mailbox Database Check... ' -ForegroundColor Yellow # -NoNewline
     $stats_collection = @()
     foreach ($mailboxdb in $mailboxdblist) {
         if (Ping-Server($mailboxdb.Server.Name) -eq $true) {
@@ -375,12 +405,12 @@ Function Get-MdbStatistics ($mailboxdblist) {
         }
         $stats_collection += $mdbobj
     }
-    Write-Host 'Done' -ForegroundColor Green
+    # Write-Host 'Done' -ForegroundColor Green
     return $stats_collection
 }
 
 Function Get-PdbStatistics ($pfdblist) {
-    Write-Host (Get-Date) ': Public Folder Database Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Public Folder Database Check... ' -ForegroundColor Yellow # -NoNewline
     $stats_collection = @()
     foreach ($pfdb in $pfdblist) {
         $pfdbobj = "" | Select-Object Name, Mounted, MountedOnServer, DatabaseSize, AvailableNewMailboxSpace, FolderCount, TotalItemSize, LastFullBackup, LastIncrementalBackup, BackupInProgress, MapiConnectivity
@@ -407,12 +437,12 @@ Function Get-PdbStatistics ($pfdblist) {
 
         $stats_collection += $pfdbobj
     }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $stats_collection
 }
 
 Function Get-DiskSpaceStatistics ($serverlist) {
-    Write-Host (Get-Date) ': Disk Space Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Disk Space Check... ' -ForegroundColor Yellow # -NoNewline
     $stats_collection = @()
     foreach ($server in $serverlist) {
         try {
@@ -439,47 +469,42 @@ Function Get-DiskSpaceStatistics ($serverlist) {
             $stats_collection += $serverobj
         }
     }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $stats_collection
 }
 
 Function Get-ReplicationHealth {
-    Write-Host (Get-Date) ': Replication Health Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Replication Health Check... ' -ForegroundColor Yellow # -NoNewline
     $stats_collection = Get-MailboxServer | Where-Object { $_.DatabaseAvailabilityGroup } | Sort-Object Name | ForEach-Object { Test-ReplicationHealth -Identity $_ }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $stats_collection
 }
 
 Function Get-MailQueues ($transportServerList) {
-    Write-Host (Get-Date) ': Mail Queue Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Mail Queue Check... ' -ForegroundColor Yellow # -NoNewline
     #$stats_collection = get-TransportServer | Where-Object {$_.ServerRole -notmatch 'Edge'} | Sort-Object Name | ForEach-Object {Get-Queue -Server $_}
     $stats_collection = $transportServerList | Sort-Object Name | ForEach-Object { Get-Queue -Server $_ | Where-Object { $_.Identity -notmatch 'Shadow' } }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $stats_collection
 }
 
 Function Get-ServerHealth ($serverlist) {
-    Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Server Status Check... ' -ForegroundColor Yellow # -NoNewline
     $stats_collection = @()
     foreach ($server in $serverlist) {
         if (Ping-Server($server.name) -eq $true) {
+            $exchange_product = (AdminDisplayVersionToName -AdminDisplayVersion $server.AdminDisplayVersion)
+
             $serverOS = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $server
 
-            $serverobj = "" | Select-Object Server, Version, Edition, Connectivity, ADSite, UpTime, HubTransportRole, ClientAccessRole, MailboxRole, MailFlow, MessageLatency
+            $serverobj = "" | Select-Object Server, ProductName, BuildNumber, KB, Version, Edition, Connectivity, ADSite, UpTime, HubTransportRole, ClientAccessRole, MailboxRole, MailFlow, MessageLatency
             $timespan = $serverOS.ConvertToDateTime($serverOS.LocalDateTime) - $serverOS.ConvertToDateTime($serverOS.LastBootUpTime)
             [int]$uptime = "{0:00}" -f $timespan.TotalHours
 
             $serverobj.Server = $server.Name
-
-            if ($server.AdminDisplayVersion -match 'Version 14') {
-                $serverobj.Version = "Exchange 2010"
-            }
-            elseif ($server.AdminDisplayVersion -match 'Version 15.0') {
-                $serverobj.Version = "Exchange 2013"
-            }
-            elseif ($server.AdminDisplayVersion -match 'Version 15.1') {
-                $serverobj.Version = "Exchange 2016"
-            }
+            $serverobj.ProductName = $exchange_product.'Product Name'
+            $serverobj.BuildNumber = $exchange_product.'Build Number'
+            $serverobj.KB = $exchange_product.KB
             $serverobj.Edition = $server.Edition
             $serverobj.UpTime = $uptime
             $serverobj.Connectivity = "Passed"
@@ -541,13 +566,13 @@ Function Get-ServerHealth ($serverlist) {
         }
         $stats_collection += $serverobj
     }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     #Write-Host $stats_collection
     return $stats_collection
 }
 
 Function Get-ServerHealthReport ($serverhealthinfo) {
-    Write-Host (Get-Date) ': Server Health Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Server Health Report... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Server Health Status</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -555,9 +580,10 @@ Function Get-ServerHealthReport ($serverhealthinfo) {
     #$currentServer = ""
     $mbody += '<table id="SectionLabels"><tr><th class="data">Server Health Status</th></tr></table>'
     $mbody += '<table id="data">'
-    $mbody += '<tr><th>Server</th><th>Version / Edition</th><th>Site</th><th>Connectivity</th><th>Up Time (Hours)</th><th>Hub Transport Role</th><th>Client Access Role</th><th>Mailbox Role</th><th>Mail Flow</th></tr>'
+    # $mbody += '<tr><th>Server</th><th>Version / Edition</th><th>Site</th><th>Connectivity</th><th>Up Time (Hours)</th><th>Hub Transport Role</th><th>Client Access Role</th><th>Mailbox Role</th><th>Mail Flow</th></tr>'
+    $mbody += '<tr><th>Server Name</th><th>Exchange Server Info</th><th>Site</th><th>Connectivity</th><th>Up Time (Hours)</th><th>Hub Transport Role</th><th>Client Access Role</th><th>Mailbox Role</th><th>Mail Flow</th></tr>'
     foreach ($server in $serverhealthinfo) {
-        $mbody += "<tr><td>$($server.server)</td><td>$($server.Version)<br/>$($server.Edition)</td><td>$($server.ADSite)</td>"
+        $mbody += "<tr><td>$($server.server)</td><td>Name: $($server.ProductName)<br/>Build: $($server.BuildNumber) [$($server.KB)]<br/>Edition: $($server.Edition)</td><td>$($server.ADSite)</td>"
         #Uptime
         if ($server.UpTime -lt 24) {
             #$errString += "<tr><td>Server Up Time</td></td><td>$($server.server) - up time [$($server.Uptime)] is less than 24 hours</td></tr>"
@@ -619,12 +645,12 @@ Function Get-ServerHealthReport ($serverhealthinfo) {
         $mbody += '</tr>'
     }
     if ($errString) { $mResult = "<tr><td>Server Health Status</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-DatabaseCopyStatus ($mailboxdblist) {
-    Write-Host (Get-Date) ': Mailbox Database Copy Status Check... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Mailbox Database Copy Status Check... ' -ForegroundColor Yellow # -NoNewline
     $stats_collection = @()
 
     foreach ($db in $mailboxdblist) {
@@ -654,12 +680,12 @@ Function Get-DatabaseCopyStatus ($mailboxdblist) {
         }
         #}
     }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $stats_collection | Sort-Object Name
 }
 
 Function Get-DAGCopyStatusReport ($mdbCopyStatus) {
-    Write-Host (Get-Date) ': Mailbox Database Copy Status... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Mailbox Database Copy Status... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Mailbox Database Copy Status</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -731,22 +757,22 @@ Function Get-DAGCopyStatusReport ($mdbCopyStatus) {
     }
     $mbody += '</tr>'
     if ($errString) { $mResult = "<tr><td>Mailbox Database Copy Status</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-ExServerComponents ($exServerList) {
-    Write-Host (Get-Date) ': Server Component State... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Server Component State... ' -ForegroundColor Yellow # -NoNewline
     foreach ($exServer in $exServerList) {
         #$stats_collection += (Get-ServerComponentState $exServer | Where-Object {$_.State -ne 'Active'} | Select-Object Identity,Component,State)
         $stats_collection += (Get-ServerComponentState $exServer | Where-Object { $_.Component -notin $IgnoreComponent } | Select-Object Identity, Component, State)
     }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $stats_collection
 }
 
 Function Get-QueueReport ($queueInfo) {
-    Write-Host (Get-Date) ': Mail Queue Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Mail Queue Report... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Mail Queue</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -773,12 +799,12 @@ Function Get-QueueReport ($queueInfo) {
 
     }
     if ($errString) { $mResult = "<tr><td>Mail Queue</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-ReplicationReport ($replInfo) {
-    Write-Host (Get-Date) ': Replication Health Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Replication Health Report... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>DAG Members Replication</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -802,14 +828,17 @@ Function Get-ReplicationReport ($replInfo) {
         }
     }
     $mbody += ""
+
+
+
     if ($errString) { $mResult = "<tr><td>DAG Members Replication</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
-    return $mbody, $errString, $mResult
+    # Write-Host "Done" -ForegroundColor Green
+    return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-ServerComponentStateReport ($serverComponentStateInfo) {
 
-    Write-Host (Get-Date) ': Server Component State... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Server Component State... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Server Component State</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -836,12 +865,12 @@ Function Get-ServerComponentStateReport ($serverComponentStateInfo) {
         }
     }
     if ($errString) { $mResult = "<tr><td>Server Component State</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-DiskReport ($diskinfo) {
-    Write-Host (Get-Date) ': Disk Space Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Disk Space Report... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Disk Space</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -869,12 +898,12 @@ Function Get-DiskReport ($diskinfo) {
 
     }
     if ($errString) { $mResult = "<tr><td>Disk Space </td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-MdbReport ($dblist) {
-    Write-Host (Get-Date) ': Mailbox Database Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Mailbox Database Report... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Mailbox Database Status</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody = @()
@@ -975,12 +1004,12 @@ Function Get-MdbReport ($dblist) {
         $mbody += '</tr>'
     }
     if ($errString) { $mResult = "<tr><td>Mailbox Database Status</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-PdbReport ($dblist) {
-    Write-Host (Get-Date) ': Public Folder Database Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': Public Folder Database Report... ' -ForegroundColor Yellow # -NoNewline
     $mResult = "<tr><td>Public Folder Database Status</td><td class = ""good"">Passed</td></tr>"
     $testFailed = 0
     $mbody += '<table id="SectionLabels"><tr><th class="data">Public Folder Database</th></tr></table>'
@@ -1052,14 +1081,16 @@ Function Get-PdbReport ($dblist) {
         $mbody += '</tr>'
     }
     if ($errString) { $mResult = "<tr><td>Public Folder Database Status</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
 Function Get-CPUAndMemoryReport ($cpuAndMemDataResult) {
-    Write-Host (Get-Date) ': CPU and Memory Report... ' -ForegroundColor Yellow -NoNewline
+    Write-Host (Get-Date) ': CPU and Memory Report... ' -ForegroundColor Yellow # -NoNewline
+    $mResult = "<tr><td>CPU and Memory Usage</td><td class = ""good"">Passed</td></tr>"
     $mbody = @()
     $errString = @()
+    $testFailed = 0
     $currentServer = ""
     $mbody += '<table id="SectionLabels"><tr><th class="data">CPU and Memory Load</th></tr></table>'
     $mbody += '<table id="data">'
@@ -1092,7 +1123,7 @@ Function Get-CPUAndMemoryReport ($cpuAndMemDataResult) {
     }
 
     if ($errString) { $mResult = "<tr><td>CPU and Memory Usage</td><td class = ""bad"">Failed</td></tr>" ; $testFailed = 1 }
-    Write-Host "Done" -ForegroundColor Green
+    # Write-Host "Done" -ForegroundColor Green
     return $mbody, $errString, $mResult, $testFailed
 }
 
@@ -1169,7 +1200,11 @@ if ($RunDiskReport -eq $true) { $diskdata = Get-DiskSpaceStatistics($ExServerLis
 # Build Report --------------------------------------------------------------
 Write-Host '==================================================================' -ForegroundColor Green
 Write-Host (Get-Date) ': Create Report' -ForegroundColor Yellow
-if ($RunCPUandMemoryReport -eq $true) { $cpuAndMemoryCheckResult, $cpuError, $cpuResult, $cpuFailed = Get-CPUAndMemoryReport ($cpuHealthData) ; $errSummary += $cpuError ; $testFailed += $cpuFailed }
+if ($RunCPUandMemoryReport -eq $true) {
+    $cpuAndMemoryCheckResult, $cpuError, $cpuResult, $cpuFailed = Get-CPUAndMemoryReport ($cpuHealthData)
+    $errSummary += $cpuError
+    $testFailed += $cpuFailed
+}
 if ($RunServerHealthReport -eq $true) { $serverhealthreport, $sError, $sResult, $sFailed = Get-ServerHealthReport ($serverhealthdata) ; $errSummary += $sError; $testFailed += $sFailed }
 if ($RunComponentReport -eq $true -AND $nonEx2010.count -gt 0) { $componentHealthReport, $cError, $cResult, $cFailed = Get-ServerComponentStateReport ($componentHealthData) ; $errSummary += $cError; $testFailed += $cFailed }
 if ($RunMdbReport -eq $true) { $mdbreport, $mError, $mdbResult, $mdbFailed = Get-MdbReport ($mdbdata) ; $errSummary += $mError; $testFailed += $mdbFailed }
