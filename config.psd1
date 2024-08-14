@@ -37,5 +37,6 @@
         IgnoreServer     = @()
         IgnoreDatabase   = @()
         IgnorePFDatabase = @()
+        IgnoreComponent  = @('ForwardSyncDaemon', 'ProvisioningRps')
     }
 }
