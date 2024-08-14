@@ -15,7 +15,7 @@
 
 .LICENSEURI
 
-.PROJECTURI https://github.com/junecastillote/MS365HealthReport
+.PROJECTURI https://github.com/junecastillote/Get-ExchangeHealth
 
 .ICONURI
 
